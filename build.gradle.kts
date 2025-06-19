@@ -10,19 +10,15 @@ project.version = "0.1.2"
 
 repositories { 
     mavenCentral()
-    ivy {
-        url = uri("https://github.com/dkoontz/teaforge/releases/download/")
-        patternLayout {
-            artifact("[revision]/[artifact]-[revision].[ext]")
-        }
-        metadataSources { artifact() }
+    flatDir {
+        dirs("libs")
     }
 }
 
 dependencies {
     implementation(kotlin("stdlib"))
     
-    api("dkoontz:teaforge:0.1.3")
+    api(files("libs/teaforge-0.1.3.jar"))
     
     implementation("edu.wpi.first.wpilibj:wpilibj-java:2025.3.2")
     implementation("edu.wpi.first.wpiutil:wpiutil-java:2025.3.2")
