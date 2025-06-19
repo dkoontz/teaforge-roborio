@@ -6,7 +6,7 @@ plugins {
 }
 
 project.group = "io.github.dkoontz"
-project.version = "0.1.1"
+project.version = "0.1.2"
 
 repositories { 
     mavenCentral()
@@ -22,8 +22,7 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib"))
     
-    // Reference to GitHub release JAR using Ivy repository
-    api("dkoontz:teaforge:0.1.3@jar")
+    api("dkoontz:teaforge:0.1.3")
     
     implementation("edu.wpi.first.wpilibj:wpilibj-java:2025.3.2")
     implementation("edu.wpi.first.wpiutil:wpiutil-java:2025.3.2")
@@ -47,6 +46,20 @@ publishing {
     publications {
         create<MavenPublication>("maven") {
             from(components["java"])
+
+            // Ensure dependencies are included in the published POM
+            pom {
+                withXml {
+                    val dependenciesNode = asNode().appendNode("dependencies")
+                    configurations.api.get().dependencies.forEach { dep ->
+                        val dependencyNode = dependenciesNode.appendNode("dependency")
+                        dependencyNode.appendNode("groupId", dep.group)
+                        dependencyNode.appendNode("artifactId", dep.name)
+                        dependencyNode.appendNode("version", dep.version)
+                        dependencyNode.appendNode("scope", "compile")
+                    }
+                }
+            }
         }
     }
 }
