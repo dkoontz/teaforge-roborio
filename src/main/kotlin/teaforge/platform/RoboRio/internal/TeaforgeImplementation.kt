@@ -1,27 +1,31 @@
 package teaforge.platform.RoboRio.internal
 
+import com.ctre.phoenix6.Orchestra
+import com.ctre.phoenix6.hardware.TalonFX
 import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.DigitalInput
+import edu.wpi.first.wpilibj.RobotState
 import edu.wpi.first.wpilibj.motorcontrol.Spark
 import teaforge.HistoryEntry
 import teaforge.ProgramRunnerConfig
 import teaforge.ProgramRunnerInstance
-import teaforge.platform.*
 import teaforge.platform.RoboRio.*
 import teaforge.utils.Maybe
 
 data class RoboRioModel<TMessage, TModel>(
-        val messageHistory: List<HistoryEntry<TMessage, TModel>>,
-        val pwmPorts: PwmPorts,
-        val dioPorts: DioPorts,
-        val analogInputs: AnalogPorts,
+    val messageHistory: List<HistoryEntry<TMessage, TModel>>,
+    val pwmPorts: PwmPorts,
+    val dioPorts: DioPorts,
+    val analogInputs: AnalogPorts,
+    val talonFXControllers: Map<Motor, TalonFX>,
+    val currentlyPlaying: List<Orchestra>
 )
 
 fun <TMessage, TModel> createRoboRioRunner(
-        program: RoboRioProgram<TMessage, TModel>,
-        roboRioArgs: List<String>,
-        programArgs: List<String>,
+    program: RoboRioProgram<TMessage, TModel>,
+    roboRioArgs: List<String>,
+    programArgs: List<String>,
 ): ProgramRunnerInstance<
         Effect<TMessage>,
         TMessage,
@@ -69,8 +73,8 @@ fun <TMessage, TModel> endOfUpdateCycle(
 }
 
 fun <TMessage, TModel> processHistoryEntry(
-        roboRioModel: RoboRioModel<TMessage, TModel>,
-        event: HistoryEntry<TMessage, TModel>
+    roboRioModel: RoboRioModel<TMessage, TModel>,
+    event: HistoryEntry<TMessage, TModel>
 ): RoboRioModel<TMessage, TModel> {
     return roboRioModel.copy(messageHistory = roboRioModel.messageHistory + event)
 }
@@ -149,17 +153,21 @@ fun <TMessage, TModel> initRoboRioRunner(args: List<String>): RoboRioModel<TMess
                     three = createAnalogPortEntry(AnalogPort.Three),
             )
 
+    val talonFXControllers = Motor.entries.associateWith { TalonFX(it.id) }
+
     return RoboRioModel(
             messageHistory = emptyList(),
             pwmPorts = pwmPorts,
             dioPorts = dioPorts,
             analogInputs = analogInputs,
+            talonFXControllers = talonFXControllers,
+            currentlyPlaying = emptyList()
     )
 }
 
 fun <TMessage, TModel> processEffect(
-        model: RoboRioModel<TMessage, TModel>,
-        effect: Effect<TMessage>,
+    model: RoboRioModel<TMessage, TModel>,
+    effect: Effect<TMessage>,
 ): Pair<RoboRioModel<TMessage, TModel>, Maybe<Nothing>> {
     return when (effect) {
         is Effect.Log -> {
@@ -171,6 +179,30 @@ fun <TMessage, TModel> processEffect(
 
             Pair(model, Maybe.None)
         }
+        is Effect.PlaySong -> { // TODO: This effect is blocking (File read)!!! Add Orchestra initialization at robot init
+            val orchestras = effect.motorMusicPaths.map { (motor, path) ->
+                Orchestra(listOf(getTalonFX(motor, model)), path)
+            }
+            for (o in orchestras) {
+                o.play()
+            }
+
+            model.copy(currentlyPlaying = orchestras) to Maybe.None
+        }
+
+        is Effect.StopSong -> {
+            for (o in model.currentlyPlaying) {
+                o.stop()
+                o.close()
+            }
+            model.copy(currentlyPlaying = emptyList()) to Maybe.None
+        }
+
+        is Effect.SetCanMotorSpeed -> {
+            getTalonFX(effect.motor, model).set(effect.value)
+            return model to Maybe.None
+        }
+
     }
 }
 
@@ -237,8 +269,8 @@ fun getDioPortValue(port: DigitalInput): DioPortStatus {
 }
 
 fun <TMessage, TModel> getDioPort(
-        port: DioPort,
-        model: RoboRioModel<TMessage, TModel>
+    port: DioPort,
+    model: RoboRioModel<TMessage, TModel>
 ): DigitalInput {
     return when (port) {
         DioPort.Zero -> {
@@ -275,8 +307,8 @@ fun <TMessage, TModel> getDioPort(
 }
 
 fun <TMessage, TModel> getAnalogPort(
-        port: AnalogPort,
-        model: RoboRioModel<TMessage, TModel>
+    port: AnalogPort,
+    model: RoboRioModel<TMessage, TModel>
 ): AnalogInput {
     return when (port) {
         AnalogPort.Zero -> {
@@ -327,4 +359,19 @@ fun <TMessage, TModel> getPwmPort(port: PwmPort, model: RoboRioModel<TMessage, T
             model.pwmPorts.nine
         }
     }
+}
+
+fun <TMessage, TModel> getTalonFX(motor: Motor, model: RoboRioModel<TMessage, TModel>) : TalonFX {
+    return model.talonFXControllers[motor]!!
+}
+
+fun getRunningRobotState() : RunningRobotState {
+    val state: RunningRobotState =
+            if (RobotState.isTeleop()) { RunningRobotState.Teleop }
+            else if (RobotState.isAutonomous()) { RunningRobotState.Autonomous }
+            else if (RobotState.isTest()) { RunningRobotState.Test }
+            else if (RobotState.isEStopped()) { RunningRobotState.EStopped }
+            else { RunningRobotState.Disabled }
+
+    return state
 }

@@ -2,7 +2,10 @@ package teaforge.platform.RoboRio.internal
 
 import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.wpilibj.GenericHID
-import teaforge.platform.RoboRio.*
+import teaforge.platform.RoboRio.DioPortStatus
+import teaforge.platform.RoboRio.HidValue
+import teaforge.platform.RoboRio.RunningRobotState
+import teaforge.platform.RoboRio.Subscription
 import teaforge.utils.Maybe
 
 sealed interface SubscriptionState<TMessage> {
@@ -25,6 +28,16 @@ sealed interface SubscriptionState<TMessage> {
                 val config: Subscription.HidPortValue<TMessage>,
                 val hidDevice: GenericHID,
         ) : SubscriptionState<TMessage>
+
+        data class RobotState<TMessage>(
+                val config: Subscription.RobotState<TMessage>
+        ) : SubscriptionState<TMessage>
+
+        data class RobotStateChanged<TMessage>(
+                val config: Subscription.RobotStateChanged<TMessage>,
+                val lastReadValue: RunningRobotState
+        ) : SubscriptionState<TMessage>
+
 }
 
 fun <TMessage, TModel> createDioPortValueState(
@@ -80,6 +93,31 @@ fun <TMessage, TModel> createHidPortValueState(
         )
 }
 
+fun <TMessage, TModel> createRobotStateSubscriptionState(
+        model: RoboRioModel<TMessage, TModel>,
+        config: Subscription.RobotState<TMessage>
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
+        return Pair(
+                model,
+                SubscriptionState.RobotState(
+                        config = config,
+                )
+        )
+}
+
+fun <TMessage, TModel> createRobotStateChangedState(
+        model: RoboRioModel<TMessage, TModel>,
+        config: Subscription.RobotStateChanged<TMessage>
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
+        return Pair(
+                model,
+                SubscriptionState.RobotStateChanged(
+                        config = config,
+                        lastReadValue = getRunningRobotState()
+                )
+        )
+}
+
 fun <TMessage, TModel> processSubscription(
         model: RoboRioModel<TMessage, TModel>,
         subscriptionState: SubscriptionState<TMessage>
@@ -92,6 +130,8 @@ fun <TMessage, TModel> processSubscription(
                 is SubscriptionState.AnalogInputValue ->
                         runReadAnalogInput(model, subscriptionState)
                 is SubscriptionState.HidPortValue -> runReadHidPort(model, subscriptionState)
+                is SubscriptionState.RobotState -> runReadRobotState(model, subscriptionState)
+                is SubscriptionState.RobotStateChanged -> runHasRobotStateChanged(model, subscriptionState)
         }
 }
 
@@ -105,6 +145,8 @@ fun <TMessage, TModel> startSubscriptionHandler(
                         createDioPortValueChangedState(model, subscription)
                 is Subscription.AnalogInputValue -> createAnalogInputEntryState(model, subscription)
                 is Subscription.HidPortValue -> createHidPortValueState(model, subscription)
+                is Subscription.RobotState -> createRobotStateSubscriptionState(model, subscription)
+                is Subscription.RobotStateChanged -> createRobotStateChangedState(model, subscription)
         }
 }
 
@@ -117,6 +159,8 @@ fun <TMessage, TModel> stopSubscriptionHandler(
                 is SubscriptionState.DioPortValueChanged -> model
                 is SubscriptionState.AnalogInputValue -> model
                 is SubscriptionState.HidPortValue -> model
+                is SubscriptionState.RobotState -> model
+                is SubscriptionState.RobotStateChanged -> model
         }
 }
 
@@ -205,4 +249,29 @@ fun <TMessage, TModel> runReadHidPort(
                 )
 
         return Triple(model, state, Maybe.Some(state.config.message(hidValue)))
+}
+
+fun <TMessage, TModel> runReadRobotState(
+        model: RoboRioModel<TMessage, TModel>,
+        state: SubscriptionState.RobotState<TMessage>
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
+        return Triple(model, state, Maybe.Some(state.config.message(getRunningRobotState())))
+}
+
+fun <TMessage, TModel> runHasRobotStateChanged(
+        model: RoboRioModel<TMessage, TModel>,
+        state: SubscriptionState.RobotStateChanged<TMessage>
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
+        val newValue = getRunningRobotState()
+
+        return if (newValue != state.lastReadValue) {
+                val updatedState =
+                        state.copy(
+                                lastReadValue = newValue,
+                        )
+
+                Triple(model, updatedState, Maybe.Some(state.config.message(state.lastReadValue, newValue)))
+        } else {
+                Triple(model, state, Maybe.None)
+        }
 }

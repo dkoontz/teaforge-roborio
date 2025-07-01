@@ -1,6 +1,7 @@
 package teaforge.platform.RoboRio
 
 import edu.wpi.first.wpilibj.RobotBase
+import teaforge.ProgramConfig
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase {
@@ -8,13 +9,19 @@ fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TMode
 }
 
 typealias RoboRioProgram<TMessage, TModel> =
-        teaforge.ProgramConfig<Effect<TMessage>, TMessage, TModel, Subscription<TMessage>>
+        ProgramConfig<Effect<TMessage>, TMessage, TModel, Subscription<TMessage>>
 
 sealed interface Effect<out TMessage> {
     data class Log(val msg: String) : Effect<Nothing>
 
+    data class PlaySong(val motorMusicPaths: Map<Motor, String>) : Effect<Nothing>
+
+    data object StopSong : Effect<Nothing>
+
     data class SetPwmMotorSpeed<TMessage>(val pwmSlot: PwmPort, val value: Double) :
-            Effect<TMessage>
+        Effect<TMessage>
+
+    data class SetCanMotorSpeed(val motor: Motor, val value: Double) : Effect<Nothing>
 
     // all the other effects go here
     //   - send message over CANbus
@@ -24,26 +31,34 @@ sealed interface Effect<out TMessage> {
 
 sealed interface Subscription<out TMessage> {
     data class DioPortValue<TMessage>(
-            val port: DioPort,
-            val millisecondsBetweenReads: Int,
-            val message: (DioPortStatus) -> TMessage,
+        val port: DioPort,
+        val millisecondsBetweenReads: Int,
+        val message: (DioPortStatus) -> TMessage,
     ) : Subscription<TMessage>
 
     data class DioPortValueChanged<TMessage>(
-            val port: DioPort,
-            val message: (DioPortStatus) -> TMessage,
+        val port: DioPort,
+        val message: (DioPortStatus) -> TMessage,
     ) : Subscription<TMessage>
 
     data class AnalogInputValue<TMessage>(
-            val port: AnalogPort,
-            val millisecondsBetweenReads: Int,
-            val useAverageValue: Boolean,
-            val message: (Double) -> TMessage,
+        val port: AnalogPort,
+        val millisecondsBetweenReads: Int,
+        val useAverageValue: Boolean,
+        val message: (Double) -> TMessage,
     ) : Subscription<TMessage>
 
     data class HidPortValue<TMessage>(
-            val port: Int,
-            val message: (HidValue) -> TMessage,
+        val port: Int,
+        val message: (HidValue) -> TMessage,
+    ) : Subscription<TMessage>
+
+    data class RobotState<TMessage>(
+        val message: (RunningRobotState) -> TMessage,
+    ) : Subscription<TMessage>
+
+    data class RobotStateChanged<TMessage>(
+        val message: (RunningRobotState, RunningRobotState) -> TMessage,
     ) : Subscription<TMessage>
 }
 
@@ -52,24 +67,6 @@ data class HidValue(
         val buttonCount: Int,
         val axisValues: Array<Double>,
         val buttonValues: Array<Boolean>,
-)
-
-data class Ps5ControllerValue(
-        val crossButton: GamepadButtonState,
-        val squareButton: GamepadButtonState,
-        val triangleButton: GamepadButtonState,
-        val circleButton: GamepadButtonState,
-        val rightShoulderButton: GamepadButtonState,
-        val leftShoulderButton: GamepadButtonState,
-        val leftStickDown: GamepadButtonState,
-        val rightStickDown: GamepadButtonState,
-        val playstationButton: GamepadButtonState,
-        val leftStickHorizontal: Double,
-        val leftStickVertical: Double,
-        val rightStickHorizontal: Double,
-        val rightStickVertical: Double,
-        val rightShoulderTrigger: Double,
-        val leftShoulderTrigger: Double,
 )
 
 enum class PwmPort {
@@ -110,7 +107,26 @@ enum class DioPortStatus {
     Closed,
 }
 
+enum class Motor(val id: Int) {
+    FrontLeftDrive(2),
+    FrontLeftSteer(3),
+    FrontRightDrive(7),
+    FrontRightSteer(0),
+    BackLeftDrive(6),
+    BackLeftSteer(5),
+    BackRightDrive(4),
+    BackRightSteer(1)
+}
+
 sealed interface GamepadButtonState {
     object Pressed : GamepadButtonState
     object Released : GamepadButtonState
+}
+
+enum class RunningRobotState {
+    Disabled,
+    Teleop,
+    Autonomous,
+    Test,
+    EStopped
 }
