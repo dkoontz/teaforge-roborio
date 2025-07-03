@@ -3,6 +3,7 @@ package teaforge.platform.RoboRio
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
+import teaforge.utils.Maybe
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase {
     return TimedRobotBasedPlatform<TMessage, TModel>(program)
@@ -22,6 +23,11 @@ sealed interface Effect<out TMessage> {
         Effect<TMessage>
 
     data class SetCanMotorSpeed(val motor: Motor, val value: Double) : Effect<Nothing>
+
+    data class ReadFile<TMessage>(
+        val path: String,
+        val onComplete: (Maybe<ByteArray>) -> TMessage
+    ) : Effect<TMessage>
 
     // all the other effects go here
     //   - send message over CANbus
@@ -60,6 +66,8 @@ sealed interface Subscription<out TMessage> {
     data class RobotStateChanged<TMessage>(
         val message: (RunningRobotState, RunningRobotState) -> TMessage,
     ) : Subscription<TMessage>
+
+
 }
 
 data class HidValue(

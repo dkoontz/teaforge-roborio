@@ -12,6 +12,9 @@ import teaforge.ProgramRunnerConfig
 import teaforge.ProgramRunnerInstance
 import teaforge.platform.RoboRio.*
 import teaforge.utils.Maybe
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.Paths
 
 data class RoboRioModel<TMessage, TModel>(
     val messageHistory: List<HistoryEntry<TMessage, TModel>>,
@@ -168,7 +171,7 @@ fun <TMessage, TModel> initRoboRioRunner(args: List<String>): RoboRioModel<TMess
 fun <TMessage, TModel> processEffect(
     model: RoboRioModel<TMessage, TModel>,
     effect: Effect<TMessage>,
-): Pair<RoboRioModel<TMessage, TModel>, Maybe<Nothing>> {
+): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
     return when (effect) {
         is Effect.Log -> {
             log(effect.msg)
@@ -201,6 +204,16 @@ fun <TMessage, TModel> processEffect(
         is Effect.SetCanMotorSpeed -> {
             getTalonFX(effect.motor, model).set(effect.value)
             return model to Maybe.None
+        }
+
+        is Effect.ReadFile -> {
+            val fileMaybe: Maybe<ByteArray> = try {
+                Maybe.Some(Files.readAllBytes(Paths.get(effect.path)))
+            } catch (e: IOException) {
+                Maybe.None
+            }
+
+            model to Maybe.Some(effect.onComplete(fileMaybe))
         }
 
     }
