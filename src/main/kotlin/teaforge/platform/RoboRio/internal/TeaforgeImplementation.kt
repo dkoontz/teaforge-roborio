@@ -5,16 +5,17 @@ import com.ctre.phoenix6.hardware.TalonFX
 import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.DigitalInput
+import edu.wpi.first.wpilibj.Filesystem
 import edu.wpi.first.wpilibj.RobotState
 import edu.wpi.first.wpilibj.motorcontrol.Spark
 import teaforge.HistoryEntry
 import teaforge.ProgramRunnerConfig
 import teaforge.ProgramRunnerInstance
 import teaforge.platform.RoboRio.*
-import teaforge.utils.Maybe
+import teaforge.utils.*
+import java.io.File
 import java.io.IOException
-import java.nio.file.Files
-import java.nio.file.Paths
+import java.nio.file.*
 
 data class RoboRioModel<TMessage, TModel>(
     val messageHistory: List<HistoryEntry<TMessage, TModel>>,
@@ -183,14 +184,22 @@ fun <TMessage, TModel> processEffect(
             Pair(model, Maybe.None)
         }
         is Effect.PlaySong -> { // TODO: This effect is blocking (File read)!!! Add Orchestra initialization at robot init
-            val orchestras = effect.motorMusicPaths.map { (motor, path) ->
-                Orchestra(listOf(getTalonFX(motor, model)), path)
-            }
-            for (o in orchestras) {
-                o.play()
+            val musicFile = File("${Filesystem.getDeployDirectory().absolutePath}/temp.chrp")
+            try {
+                if (!musicFile.createNewFile()) {
+                    if (!musicFile.delete() || !musicFile.createNewFile()) {
+                        throw Exception()
+                    }
+                }
+                musicFile.writeBytes(effect.songData)
+            } catch (_: Exception) {
+                model to effect.message(Error.ReadOnlyFileSystem)
             }
 
-            model.copy(currentlyPlaying = orchestras) to Maybe.None
+            val orchestra = Orchestra(listOf(getTalonFX(effect.motor, model)), musicFile.absolutePath)
+            orchestra.play()
+
+            model.copy(currentlyPlaying = model.currentlyPlaying.plus(orchestra)) to Maybe.None
         }
 
         is Effect.StopSong -> {
@@ -207,13 +216,15 @@ fun <TMessage, TModel> processEffect(
         }
 
         is Effect.ReadFile -> {
-            val fileMaybe: Maybe<ByteArray> = try {
-                Maybe.Some(Files.readAllBytes(Paths.get(effect.path)))
-            } catch (e: IOException) {
-                Maybe.None
+            val result: Result<ByteArray, Error> = try {
+                val path: Path = Paths.get(effect.path)
+                val data: ByteArray = Files.readAllBytes(path)
+                Result.Success(data)
+            } catch (_: Exception) {
+                Result.Error(Error.InvalidFilename(effect.path))
             }
 
-            model to Maybe.Some(effect.onComplete(fileMaybe))
+            model to Maybe.Some(effect.message(result))
         }
 
     }

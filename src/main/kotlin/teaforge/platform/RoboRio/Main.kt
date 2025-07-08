@@ -4,6 +4,8 @@ import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
 import teaforge.utils.Maybe
+import teaforge.utils.Result
+import java.io.IOException
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase {
     return TimedRobotBasedPlatform<TMessage, TModel>(program)
@@ -15,7 +17,11 @@ typealias RoboRioProgram<TMessage, TModel> =
 sealed interface Effect<out TMessage> {
     data class Log(val msg: String) : Effect<Nothing>
 
-    data class PlaySong(val motorMusicPaths: Map<Motor, String>) : Effect<Nothing>
+    data class PlaySong<TMessage>(
+        val motor: Motor,
+        val songData: ByteArray,
+        val message: (Error) -> TMessage
+    ) : Effect<TMessage>
 
     data object StopSong : Effect<Nothing>
 
@@ -26,7 +32,7 @@ sealed interface Effect<out TMessage> {
 
     data class ReadFile<TMessage>(
         val path: String,
-        val onComplete: (Maybe<ByteArray>) -> TMessage
+        val message: (Result<ByteArray, Error>) -> TMessage
     ) : Effect<TMessage>
 
     // all the other effects go here
@@ -137,4 +143,12 @@ enum class RunningRobotState {
     Autonomous,
     Test,
     EStopped
+}
+
+sealed class Error {
+    data class InvalidFilename(val path: String) : Error()
+    data object ReadOnlyFileSystem : Error()
+
+    // TODO: Add pre-defined default error messages for each error
+    fun name(): String = this::class.simpleName ?: ""
 }
