@@ -1,6 +1,7 @@
 package teaforge.platform.RoboRio.internal
 
 import com.ctre.phoenix6.Orchestra
+import com.ctre.phoenix6.hardware.CANcoder
 import com.ctre.phoenix6.hardware.TalonFX
 import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.wpilibj.AnalogInput
@@ -23,6 +24,7 @@ data class RoboRioModel<TMessage, TModel>(
     val dioPorts: DioPorts,
     val analogInputs: AnalogPorts,
     val talonFXControllers: Map<Motor, TalonFX>,
+    val encoderControllers: Map<Encoder, CANcoder>,
     val currentlyPlaying: List<Orchestra>
 )
 
@@ -158,6 +160,7 @@ fun <TMessage, TModel> initRoboRioRunner(args: List<String>): RoboRioModel<TMess
             )
 
     val talonFXControllers = Motor.entries.associateWith { TalonFX(it.id) }
+    val encoderControllers = Encoder.entries.associateWith { CANcoder(it.id) }
 
     return RoboRioModel(
             messageHistory = emptyList(),
@@ -165,6 +168,7 @@ fun <TMessage, TModel> initRoboRioRunner(args: List<String>): RoboRioModel<TMess
             dioPorts = dioPorts,
             analogInputs = analogInputs,
             talonFXControllers = talonFXControllers,
+            encoderControllers = encoderControllers,
             currentlyPlaying = emptyList()
     )
 }
@@ -387,6 +391,10 @@ fun <TMessage, TModel> getPwmPort(port: PwmPort, model: RoboRioModel<TMessage, T
 
 fun <TMessage, TModel> getTalonFX(motor: Motor, model: RoboRioModel<TMessage, TModel>) : TalonFX {
     return model.talonFXControllers[motor]!!
+}
+
+fun <TMessage, TModel> getCANcoder(encoder: Encoder, model: RoboRioModel<TMessage, TModel>) : CANcoder {
+    return model.encoderControllers[encoder]!!
 }
 
 fun getRunningRobotState() : RunningRobotState {

@@ -73,6 +73,12 @@ sealed interface Subscription<out TMessage> {
         val message: (RunningRobotState, RunningRobotState) -> TMessage,
     ) : Subscription<TMessage>
 
+    data class CANcoderValue<TMessage>(
+        val encoder: Encoder,
+        val millisecondsBetweenReads: Int,
+        val message: (Encoder, Double) -> TMessage
+    ) : Subscription<TMessage>
+
 
 }
 
@@ -130,6 +136,13 @@ enum class Motor(val id: Int) {
     BackLeftSteer(5),
     BackRightDrive(4),
     BackRightSteer(1)
+}
+
+enum class Encoder(val id: Int) {
+    FrontLeft(8),
+    FrontRight(9),
+    BackLeft(10),
+    BackRight(11)
 }
 
 sealed interface GamepadButtonState {

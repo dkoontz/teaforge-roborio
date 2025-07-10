@@ -38,6 +38,11 @@ sealed interface SubscriptionState<TMessage> {
                 val lastReadValue: RunningRobotState
         ) : SubscriptionState<TMessage>
 
+        data class CANcoderValue<TMessage>(
+                val config: Subscription.CANcoderValue<TMessage>,
+                val lastReadTimeMicroseconds: Long
+        ) : SubscriptionState<TMessage>
+
 }
 
 fun <TMessage, TModel> createDioPortValueState(
@@ -118,6 +123,19 @@ fun <TMessage, TModel> createRobotStateChangedState(
         )
 }
 
+fun <TMessage, TModel> createCANcoderValueState(
+        model: RoboRioModel<TMessage, TModel>,
+        config: Subscription.CANcoderValue<TMessage>
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
+        return Pair(
+                model,
+                SubscriptionState.CANcoderValue(
+                        config = config,
+                        lastReadTimeMicroseconds = 0,
+                )
+        )
+}
+
 fun <TMessage, TModel> processSubscription(
         model: RoboRioModel<TMessage, TModel>,
         subscriptionState: SubscriptionState<TMessage>
@@ -132,6 +150,7 @@ fun <TMessage, TModel> processSubscription(
                 is SubscriptionState.HidPortValue -> runReadHidPort(model, subscriptionState)
                 is SubscriptionState.RobotState -> runReadRobotState(model, subscriptionState)
                 is SubscriptionState.RobotStateChanged -> runHasRobotStateChanged(model, subscriptionState)
+                is SubscriptionState.CANcoderValue -> runReadCANcoder(model, subscriptionState)
         }
 }
 
@@ -147,6 +166,7 @@ fun <TMessage, TModel> startSubscriptionHandler(
                 is Subscription.HidPortValue -> createHidPortValueState(model, subscription)
                 is Subscription.RobotState -> createRobotStateSubscriptionState(model, subscription)
                 is Subscription.RobotStateChanged -> createRobotStateChangedState(model, subscription)
+                is Subscription.CANcoderValue -> createCANcoderValueState(model, subscription)
         }
 }
 
@@ -161,6 +181,7 @@ fun <TMessage, TModel> stopSubscriptionHandler(
                 is SubscriptionState.HidPortValue -> model
                 is SubscriptionState.RobotState -> model
                 is SubscriptionState.RobotStateChanged -> model
+                is SubscriptionState.CANcoderValue -> model
         }
 }
 
@@ -271,6 +292,27 @@ fun <TMessage, TModel> runHasRobotStateChanged(
                         )
 
                 Triple(model, updatedState, Maybe.Some(state.config.message(state.lastReadValue, newValue)))
+        } else {
+                Triple(model, state, Maybe.None)
+        }
+}
+
+fun <TMessage, TModel> runReadCANcoder(
+        model: RoboRioModel<TMessage, TModel>,
+        state: SubscriptionState.CANcoderValue<TMessage>
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
+        val currentMicroseconds = HALUtil.getFPGATime()
+        val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
+        return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
+                val cancoder = getCANcoder(state.config.encoder, model)
+                val newValue = cancoder.absolutePosition.valueAsDouble
+
+                val updatedState =
+                        state.copy(
+                                lastReadTimeMicroseconds = currentMicroseconds,
+                        )
+
+                Triple(model, updatedState, Maybe.Some(state.config.message(state.config.encoder, newValue)))
         } else {
                 Triple(model, state, Maybe.None)
         }
