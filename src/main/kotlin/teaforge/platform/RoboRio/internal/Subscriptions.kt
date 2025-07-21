@@ -43,6 +43,11 @@ sealed interface SubscriptionState<TMessage> {
                 val lastReadTimeMicroseconds: Long
         ) : SubscriptionState<TMessage>
 
+        data class PigeonValue<TMessage>(
+                val config: Subscription.PigeonValue<TMessage>,
+                val lastReadTimeMicroseconds: Long
+        ) : SubscriptionState<TMessage>
+
 }
 
 fun <TMessage, TModel> createDioPortValueState(
@@ -66,7 +71,7 @@ fun <TMessage, TModel> createDioPortValueChangedState(
                 model,
                 SubscriptionState.DioPortValueChanged(
                         config = config,
-                        lastReadValue = getDioPortValue(getDioPort(config.port, model)),
+                        lastReadValue = getDioPortValue(getDioInput(config.port, model)),
                 )
         )
 }
@@ -136,6 +141,21 @@ fun <TMessage, TModel> createCANcoderValueState(
         )
 }
 
+fun <TMessage, TModel> createPigeonValueState(
+        model: RoboRioModel<TMessage, TModel>,
+        config: Subscription.PigeonValue<TMessage>
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
+        return Pair(
+                model,
+                SubscriptionState.PigeonValue(
+                        config = config,
+                        lastReadTimeMicroseconds = 0,
+                )
+        )
+}
+
+
+
 fun <TMessage, TModel> processSubscription(
         model: RoboRioModel<TMessage, TModel>,
         subscriptionState: SubscriptionState<TMessage>
@@ -151,6 +171,7 @@ fun <TMessage, TModel> processSubscription(
                 is SubscriptionState.RobotState -> runReadRobotState(model, subscriptionState)
                 is SubscriptionState.RobotStateChanged -> runHasRobotStateChanged(model, subscriptionState)
                 is SubscriptionState.CANcoderValue -> runReadCANcoder(model, subscriptionState)
+                is SubscriptionState.PigeonValue -> runReadPigeon(model, subscriptionState)
         }
 }
 
@@ -167,6 +188,7 @@ fun <TMessage, TModel> startSubscriptionHandler(
                 is Subscription.RobotState -> createRobotStateSubscriptionState(model, subscription)
                 is Subscription.RobotStateChanged -> createRobotStateChangedState(model, subscription)
                 is Subscription.CANcoderValue -> createCANcoderValueState(model, subscription)
+                is Subscription.PigeonValue -> createPigeonValueState(model, subscription)
         }
 }
 
@@ -182,6 +204,7 @@ fun <TMessage, TModel> stopSubscriptionHandler(
                 is SubscriptionState.RobotState -> model
                 is SubscriptionState.RobotStateChanged -> model
                 is SubscriptionState.CANcoderValue -> model
+                is SubscriptionState.PigeonValue<*> -> model
         }
 }
 
@@ -193,7 +216,7 @@ fun <TMessage, TModel> runReadDioPort(
         val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
 
         return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
-                val newValue = getDioPortValue(getDioPort(state.config.port, model))
+                val newValue = getDioPortValue(getDioInput(state.config.port, model))
 
                 val updatedState =
                         state.copy(
@@ -210,7 +233,7 @@ fun <TMessage, TModel> runHasDioPortChanged(
         model: RoboRioModel<TMessage, TModel>,
         state: SubscriptionState.DioPortValueChanged<TMessage>
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
-        val newValue = getDioPortValue(getDioPort(state.config.port, model))
+        val newValue = getDioPortValue(getDioInput(state.config.port, model))
 
         return if (newValue != state.lastReadValue) {
                 val updatedState =
@@ -313,6 +336,29 @@ fun <TMessage, TModel> runReadCANcoder(
                         )
 
                 Triple(model, updatedState, Maybe.Some(state.config.message(state.config.encoder, newValue)))
+        } else {
+                Triple(model, state, Maybe.None)
+        }
+}
+
+fun <TMessage, TModel> runReadPigeon(
+        model: RoboRioModel<TMessage, TModel>,
+        state: SubscriptionState.PigeonValue<TMessage>
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
+        val currentMicroseconds = HALUtil.getFPGATime()
+        val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
+        return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
+                val pigeon = getPigeon2(state.config.pigeon, model)
+                pigeon.rotation3d?.let { newValue ->
+                        val updatedState =
+                                state.copy(
+                                        lastReadTimeMicroseconds = currentMicroseconds,
+                                )
+
+                        Triple(model, updatedState, Maybe.Some(state.config.message(state.config.pigeon, newValue)))
+                }
+
+                Triple(model, state, Maybe.None)
         } else {
                 Triple(model, state, Maybe.None)
         }

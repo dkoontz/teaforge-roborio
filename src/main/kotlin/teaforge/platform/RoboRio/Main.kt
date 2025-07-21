@@ -1,11 +1,10 @@
 package teaforge.platform.RoboRio
 
+import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
-import teaforge.utils.Maybe
 import teaforge.utils.Result
-import java.io.IOException
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase {
     return TimedRobotBasedPlatform<TMessage, TModel>(program)
@@ -34,6 +33,12 @@ sealed interface Effect<out TMessage> {
         val path: String,
         val message: (Result<ByteArray, Error>) -> TMessage
     ) : Effect<TMessage>
+
+    data class SetDioPort<TMessage>(
+        val port: DioPort,
+        val value: DioPortVoltage
+    ) : Effect<TMessage>
+
 
     // all the other effects go here
     //   - send message over CANbus
@@ -79,14 +84,22 @@ sealed interface Subscription<out TMessage> {
         val message: (Encoder, Double) -> TMessage
     ) : Subscription<TMessage>
 
+    data class PigeonValue<TMessage>(
+        val pigeon: Pigeon,
+        val millisecondsBetweenReads: Int,
+        val message: (Pigeon, Rotation3d) -> TMessage
+    ) : Subscription<TMessage>
+
+
+
 
 }
 
 data class HidValue(
-        val axisCount: Int,
-        val buttonCount: Int,
-        val axisValues: Array<Double>,
-        val buttonValues: Array<Boolean>,
+    val axisCount: Int,
+    val buttonCount: Int,
+    val axisValues: Array<Double>,
+    val buttonValues: Array<Boolean>,
 )
 
 enum class PwmPort {
@@ -127,6 +140,11 @@ enum class DioPortStatus {
     Closed,
 }
 
+enum class DioPortVoltage {
+    HIGH,
+    LOW
+}
+
 enum class Motor(val id: Int) {
     FrontLeftDrive(2),
     FrontLeftSteer(3),
@@ -143,6 +161,10 @@ enum class Encoder(val id: Int) {
     FrontRight(9),
     BackLeft(10),
     BackRight(11)
+}
+
+enum class Pigeon(val id: Int) {
+    CentralPigeon(3)
 }
 
 sealed interface GamepadButtonState {

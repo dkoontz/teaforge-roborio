@@ -2,10 +2,12 @@ package teaforge.platform.RoboRio.internal
 
 import com.ctre.phoenix6.Orchestra
 import com.ctre.phoenix6.hardware.CANcoder
+import com.ctre.phoenix6.hardware.Pigeon2
 import com.ctre.phoenix6.hardware.TalonFX
 import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.DigitalInput
+import edu.wpi.first.wpilibj.DigitalOutput
 import edu.wpi.first.wpilibj.Filesystem
 import edu.wpi.first.wpilibj.RobotState
 import edu.wpi.first.wpilibj.motorcontrol.Spark
@@ -21,11 +23,13 @@ import java.nio.file.*
 data class RoboRioModel<TMessage, TModel>(
     val messageHistory: List<HistoryEntry<TMessage, TModel>>,
     val pwmPorts: PwmPorts,
-    val dioPorts: DioPorts,
+    val dioInputs: DioInputs,
+    val dioOutputs: DioOutputs,
     val analogInputs: AnalogPorts,
     val talonFXControllers: Map<Motor, TalonFX>,
+    val pigeonControllers: Map<Pigeon, Pigeon2>,
     val encoderControllers: Map<Encoder, CANcoder>,
-    val currentlyPlaying: List<Orchestra>
+    val currentlyPlaying: List<Orchestra>,
 )
 
 fun <TMessage, TModel> createRoboRioRunner(
@@ -47,33 +51,33 @@ fun <TMessage, TModel> createRoboRioRunner(
                     RoboRioModel<TMessage, TModel>,
                     Subscription<TMessage>,
                     SubscriptionState<TMessage>> =
-            ProgramRunnerConfig(
-                    initRunner = ::initRoboRioRunner,
-                    processEffect = ::processEffect,
-                    processSubscription = ::processSubscription,
-                    startOfUpdateCycle = ::startOfUpdateCycle,
-                    endOfUpdateCycle = ::endOfUpdateCycle,
-                    processHistoryEntry = ::processHistoryEntry,
-                    startSubscription = ::startSubscriptionHandler,
-                    stopSubscription = ::stopSubscriptionHandler,
-            )
+        ProgramRunnerConfig(
+            initRunner = ::initRoboRioRunner,
+            processEffect = ::processEffect,
+            processSubscription = ::processSubscription,
+            startOfUpdateCycle = ::startOfUpdateCycle,
+            endOfUpdateCycle = ::endOfUpdateCycle,
+            processHistoryEntry = ::processHistoryEntry,
+            startSubscription = ::startSubscriptionHandler,
+            stopSubscription = ::stopSubscriptionHandler,
+        )
 
     return teaforge.platform.initRunner(
-            runnerConfig,
-            roboRioArgs,
-            program,
-            programArgs,
+        runnerConfig,
+        roboRioArgs,
+        program,
+        programArgs,
     )
 }
 
 fun <TMessage, TModel> startOfUpdateCycle(
-        model: RoboRioModel<TMessage, TModel>
+    model: RoboRioModel<TMessage, TModel>
 ): RoboRioModel<TMessage, TModel> {
     return model
 }
 
 fun <TMessage, TModel> endOfUpdateCycle(
-        model: RoboRioModel<TMessage, TModel>
+    model: RoboRioModel<TMessage, TModel>
 ): RoboRioModel<TMessage, TModel> {
     return model
 }
@@ -86,90 +90,122 @@ fun <TMessage, TModel> processHistoryEntry(
 }
 
 data class PwmPorts(
-        val zero: Spark,
-        val one: Spark,
-        val two: Spark,
-        val three: Spark,
-        val four: Spark,
-        val five: Spark,
-        val six: Spark,
-        val seven: Spark,
-        val eight: Spark,
-        val nine: Spark,
+    val zero: Spark,
+    val one: Spark,
+    val two: Spark,
+    val three: Spark,
+    val four: Spark,
+    val five: Spark,
+    val six: Spark,
+    val seven: Spark,
+    val eight: Spark,
+    val nine: Spark,
 )
 
-data class DioPorts(
-        val zero: DigitalInput,
-        val one: DigitalInput,
-        val two: DigitalInput,
-        val three: DigitalInput,
-        val four: DigitalInput,
-        val five: DigitalInput,
-        val six: DigitalInput,
-        val seven: DigitalInput,
-        val eight: DigitalInput,
-        val nine: DigitalInput,
+data class DioInputs(
+    val zero: DigitalInput,
+    val one: DigitalInput,
+    val two: DigitalInput,
+    val three: DigitalInput,
+    val four: DigitalInput,
+    val five: DigitalInput,
+    val six: DigitalInput,
+    val seven: DigitalInput,
+    val eight: DigitalInput,
+    val nine: DigitalInput,
+)
+
+data class DioOutputs(
+    val zero: DigitalOutput,
+    val one: DigitalOutput,
+    val two: DigitalOutput,
+    val three: DigitalOutput,
+    val four: DigitalOutput,
+    val five: DigitalOutput,
+    val six: DigitalOutput,
+    val seven: DigitalOutput,
+    val eight: DigitalOutput,
+    val nine: DigitalOutput,
 )
 
 data class AnalogPorts(
-        val zero: AnalogInput,
-        val one: AnalogInput,
-        val two: AnalogInput,
-        val three: AnalogInput,
+    val zero: AnalogInput,
+    val one: AnalogInput,
+    val two: AnalogInput,
+    val three: AnalogInput,
 )
 
 fun <TMessage, TModel> initRoboRioRunner(args: List<String>): RoboRioModel<TMessage, TModel> {
     // Do any hardware initialization here
     val createDioEntry = { port: DioPort -> DigitalInput(digitalIoPortToInt(port)) }
+    val createDioOutput = { port: DioPort -> DigitalOutput(digitalIoPortToInt(port)) }
     val createAnalogPortEntry = { port: AnalogPort -> AnalogInput(analogPortToInt(port)) }
 
     val pwmPorts =
-            PwmPorts(
-                    zero = Spark(pwmPortToInt(PwmPort.Zero)),
-                    one = Spark(pwmPortToInt(PwmPort.One)),
-                    two = Spark(pwmPortToInt(PwmPort.Two)),
-                    three = Spark(pwmPortToInt(PwmPort.Three)),
-                    four = Spark(pwmPortToInt(PwmPort.Four)),
-                    five = Spark(pwmPortToInt(PwmPort.Five)),
-                    six = Spark(pwmPortToInt(PwmPort.Six)),
-                    seven = Spark(pwmPortToInt(PwmPort.Seven)),
-                    eight = Spark(pwmPortToInt(PwmPort.Eight)),
-                    nine = Spark(pwmPortToInt(PwmPort.Nine)),
-            )
+        PwmPorts(
+            zero = Spark(pwmPortToInt(PwmPort.Zero)),
+            one = Spark(pwmPortToInt(PwmPort.One)),
+            two = Spark(pwmPortToInt(PwmPort.Two)),
+            three = Spark(pwmPortToInt(PwmPort.Three)),
+            four = Spark(pwmPortToInt(PwmPort.Four)),
+            five = Spark(pwmPortToInt(PwmPort.Five)),
+            six = Spark(pwmPortToInt(PwmPort.Six)),
+            seven = Spark(pwmPortToInt(PwmPort.Seven)),
+            eight = Spark(pwmPortToInt(PwmPort.Eight)),
+            nine = Spark(pwmPortToInt(PwmPort.Nine)),
+        )
 
-    val dioPorts =
-            DioPorts(
-                    zero = createDioEntry(DioPort.Zero),
-                    one = createDioEntry(DioPort.One),
-                    two = createDioEntry(DioPort.Two),
-                    three = createDioEntry(DioPort.Three),
-                    four = createDioEntry(DioPort.Four),
-                    five = createDioEntry(DioPort.Five),
-                    six = createDioEntry(DioPort.Six),
-                    seven = createDioEntry(DioPort.Seven),
-                    eight = createDioEntry(DioPort.Eight),
-                    nine = createDioEntry(DioPort.Nine),
-            )
+    val dioInputs =
+        DioInputs(
+            zero = createDioEntry(DioPort.Zero),
+            one = createDioEntry(DioPort.One),
+            two = createDioEntry(DioPort.Two),
+            three = createDioEntry(DioPort.Three),
+            four = createDioEntry(DioPort.Four),
+            five = createDioEntry(DioPort.Five),
+            six = createDioEntry(DioPort.Six),
+            seven = createDioEntry(DioPort.Seven),
+            eight = createDioEntry(DioPort.Eight),
+            nine = createDioEntry(DioPort.Nine),
+        )
+
+
+    val dioOutputs =
+        DioOutputs(
+            zero = createDioOutput(DioPort.Zero),
+            one = createDioOutput(DioPort.One),
+            two = createDioOutput(DioPort.Two),
+            three = createDioOutput(DioPort.Three),
+            four = createDioOutput(DioPort.Four),
+            five = createDioOutput(DioPort.Five),
+            six = createDioOutput(DioPort.Six),
+            seven = createDioOutput(DioPort.Seven),
+            eight = createDioOutput(DioPort.Eight),
+            nine = createDioOutput(DioPort.Nine),
+        )
 
     val analogInputs =
-            AnalogPorts(
-                    zero = createAnalogPortEntry(AnalogPort.Zero),
-                    one = createAnalogPortEntry(AnalogPort.One),
-                    two = createAnalogPortEntry(AnalogPort.Two),
-                    three = createAnalogPortEntry(AnalogPort.Three),
-            )
+        AnalogPorts(
+            zero = createAnalogPortEntry(AnalogPort.Zero),
+            one = createAnalogPortEntry(AnalogPort.One),
+            two = createAnalogPortEntry(AnalogPort.Two),
+            three = createAnalogPortEntry(AnalogPort.Three),
+        )
 
     val talonFXControllers = Motor.entries.associateWith { TalonFX(it.id) }
     val encoderControllers = Encoder.entries.associateWith { CANcoder(it.id) }
+    val pigeonControllers = Pigeon.entries.associateWith { Pigeon2(it.id) }
 
     return RoboRioModel(
-            messageHistory = emptyList(),
-            pwmPorts = pwmPorts,
-            dioPorts = dioPorts,
-            analogInputs = analogInputs,
-            talonFXControllers = talonFXControllers,
-            encoderControllers = encoderControllers,
-            currentlyPlaying = emptyList()
+        messageHistory = emptyList(),
+        pwmPorts = pwmPorts,
+        dioInputs = dioInputs,
+        dioOutputs = dioOutputs,
+        analogInputs = analogInputs,
+        talonFXControllers = talonFXControllers,
+        encoderControllers = encoderControllers,
+        pigeonControllers = pigeonControllers,
+        currentlyPlaying = emptyList()
     )
 }
 
@@ -231,6 +267,16 @@ fun <TMessage, TModel> processEffect(
             model to Maybe.Some(effect.message(result))
         }
 
+        is Effect.SetDioPort -> {
+            val power: Boolean = when (effect.value) {
+                DioPortVoltage.LOW -> false
+                DioPortVoltage.HIGH -> true
+            }
+            getDioOutput(effect.port, model).set(power)
+
+            model to Maybe.None
+        }
+
     }
 }
 
@@ -283,8 +329,8 @@ private fun log(msg: String) {
     val elapsedHours = elapsedMicroseconds.div(3_600_000_000L)
 
     println(
-            "[${String.format("%02d:%02d:%02d:%03d", elapsedHours, elapsedMinutes,
-elapsedSeconds, elapsedMilliseconds)}] $msg"
+        "[${String.format("%02d:%02d:%02d:%03d", elapsedHours, elapsedMinutes,
+            elapsedSeconds, elapsedMilliseconds)}] $msg"
     )
 }
 
@@ -296,40 +342,78 @@ fun getDioPortValue(port: DigitalInput): DioPortStatus {
     }
 }
 
-fun <TMessage, TModel> getDioPort(
+fun <TMessage, TModel> getDioInput(
     port: DioPort,
     model: RoboRioModel<TMessage, TModel>
 ): DigitalInput {
     return when (port) {
         DioPort.Zero -> {
-            model.dioPorts.zero
+            model.dioInputs.zero
         }
         DioPort.One -> {
-            model.dioPorts.one
+            model.dioInputs.one
         }
         DioPort.Two -> {
-            model.dioPorts.two
+            model.dioInputs.two
         }
         DioPort.Three -> {
-            model.dioPorts.three
+            model.dioInputs.three
         }
         DioPort.Four -> {
-            model.dioPorts.four
+            model.dioInputs.four
         }
         DioPort.Five -> {
-            model.dioPorts.five
+            model.dioInputs.five
         }
         DioPort.Six -> {
-            model.dioPorts.six
+            model.dioInputs.six
         }
         DioPort.Seven -> {
-            model.dioPorts.seven
+            model.dioInputs.seven
         }
         DioPort.Eight -> {
-            model.dioPorts.eight
+            model.dioInputs.eight
         }
         DioPort.Nine -> {
-            model.dioPorts.nine
+            model.dioInputs.nine
+        }
+    }
+}
+
+fun <TMessage, TModel> getDioOutput(
+    port: DioPort,
+    model: RoboRioModel<TMessage, TModel>
+): DigitalOutput {
+    return when (port) {
+        DioPort.Zero -> {
+            model.dioOutputs.zero
+        }
+        DioPort.One -> {
+            model.dioOutputs.one
+        }
+        DioPort.Two -> {
+            model.dioOutputs.two
+        }
+        DioPort.Three -> {
+            model.dioOutputs.three
+        }
+        DioPort.Four -> {
+            model.dioOutputs.four
+        }
+        DioPort.Five -> {
+            model.dioOutputs.five
+        }
+        DioPort.Six -> {
+            model.dioOutputs.six
+        }
+        DioPort.Seven -> {
+            model.dioOutputs.seven
+        }
+        DioPort.Eight -> {
+            model.dioOutputs.eight
+        }
+        DioPort.Nine -> {
+            model.dioOutputs.nine
         }
     }
 }
@@ -397,13 +481,17 @@ fun <TMessage, TModel> getCANcoder(encoder: Encoder, model: RoboRioModel<TMessag
     return model.encoderControllers[encoder]!!
 }
 
+fun <TMessage, TModel> getPigeon2(pigeon: Pigeon, model: RoboRioModel<TMessage, TModel>) : Pigeon2 {
+    return model.pigeonControllers[pigeon]!!
+}
+
 fun getRunningRobotState() : RunningRobotState {
     val state: RunningRobotState =
-            if (RobotState.isTeleop()) { RunningRobotState.Teleop }
-            else if (RobotState.isAutonomous()) { RunningRobotState.Autonomous }
-            else if (RobotState.isTest()) { RunningRobotState.Test }
-            else if (RobotState.isEStopped()) { RunningRobotState.EStopped }
-            else { RunningRobotState.Disabled }
+        if (RobotState.isTeleop()) { RunningRobotState.Teleop }
+        else if (RobotState.isAutonomous()) { RunningRobotState.Autonomous }
+        else if (RobotState.isTest()) { RunningRobotState.Test }
+        else if (RobotState.isEStopped()) { RunningRobotState.EStopped }
+        else { RunningRobotState.Disabled }
 
     return state
 }

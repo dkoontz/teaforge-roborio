@@ -7,7 +7,7 @@ import teaforge.platform.RoboRio.RoboRioProgram
 import teaforge.platform.RoboRio.Subscription
 
 class TimedRobotBasedPlatform<TMessage, TModel>(val program: RoboRioProgram<TMessage, TModel>) :
-        TimedRobot() {
+    TimedRobot() {
 
     private var runner:
             ProgramRunnerInstance<
@@ -17,7 +17,7 @@ class TimedRobotBasedPlatform<TMessage, TModel>(val program: RoboRioProgram<TMes
                     RoboRioModel<TMessage, TModel>,
                     Subscription<TMessage>,
                     SubscriptionState<TMessage>>? =
-            null
+        null
 
     override fun robotInit() {
         val roboRioArgs = listOf<String>()
