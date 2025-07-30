@@ -4,7 +4,9 @@ import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
+import teaforge.utils.Maybe
 import teaforge.utils.Result
+import java.util.*
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase {
     return TimedRobotBasedPlatform<TMessage, TModel>(program)
@@ -16,13 +18,21 @@ typealias RoboRioProgram<TMessage, TModel> =
 sealed interface Effect<out TMessage> {
     data class Log(val msg: String) : Effect<Nothing>
 
-    data class PlaySong<TMessage>(
+    data class LoadSong<TMessage>(
         val motor: Motor,
         val songData: ByteArray,
-        val message: (Error) -> TMessage
+        val message: (Motor, Maybe<Error>) -> TMessage
     ) : Effect<TMessage>
 
-    data object StopSong : Effect<Nothing>
+    data class PlaySong<TMessage>(
+        val motor: Motor,
+        val message: (Motor, Maybe<Error>) -> TMessage
+    ) : Effect<TMessage>
+
+    data class StopSong<TMessage>(
+        val motor: Motor,
+        val message: (Motor, Maybe<Error>) -> TMessage
+    ) : Effect<TMessage>
 
     data class SetPwmMotorSpeed<TMessage>(val pwmSlot: PwmPort, val value: Double) :
         Effect<TMessage>
@@ -36,7 +46,8 @@ sealed interface Effect<out TMessage> {
 
     data class SetDioPort<TMessage>(
         val port: DioPort,
-        val value: DioPortVoltage
+        val value: DioPortState,
+        val message: (Result<DioPort, Error>) -> TMessage
     ) : Effect<TMessage>
 
 
@@ -50,12 +61,8 @@ sealed interface Subscription<out TMessage> {
     data class DioPortValue<TMessage>(
         val port: DioPort,
         val millisecondsBetweenReads: Int,
-        val message: (DioPortStatus) -> TMessage,
-    ) : Subscription<TMessage>
-
-    data class DioPortValueChanged<TMessage>(
-        val port: DioPort,
-        val message: (DioPortStatus) -> TMessage,
+        val onInit: (Result<DioPort, Error>) -> TMessage,
+        val onRead: (DioPortStatus) -> TMessage,
     ) : Subscription<TMessage>
 
     data class AnalogInputValue<TMessage>(
@@ -115,17 +122,17 @@ enum class PwmPort {
     Nine,
 }
 
-enum class DioPort {
-    Zero,
-    One,
-    Two,
-    Three,
-    Four,
-    Five,
-    Six,
-    Seven,
-    Eight,
-    Nine,
+enum class DioPort(val id: Int) {
+    Zero(0),
+    One(1),
+    Two(2),
+    Three(3),
+    Four(4),
+    Five(5),
+    Six(6),
+    Seven(7),
+    Eight(8),
+    Nine(9),
 }
 
 enum class AnalogPort {
@@ -140,7 +147,7 @@ enum class DioPortStatus {
     Closed,
 }
 
-enum class DioPortVoltage {
+enum class DioPortState {
     HIGH,
     LOW
 }
@@ -157,14 +164,14 @@ enum class Motor(val id: Int) {
 }
 
 enum class Encoder(val id: Int) {
-    FrontLeft(8),
+    FrontLeft(11),
     FrontRight(9),
     BackLeft(10),
-    BackRight(11)
+    BackRight(8)
 }
 
 enum class Pigeon(val id: Int) {
-    CentralPigeon(3)
+    CentralPigeon(12)
 }
 
 sealed interface GamepadButtonState {
@@ -177,12 +184,17 @@ enum class RunningRobotState {
     Teleop,
     Autonomous,
     Test,
-    EStopped
+    EStopped,
+    Unknown
 }
 
 sealed class Error {
     data class InvalidFilename(val path: String) : Error()
     data object ReadOnlyFileSystem : Error()
+    data object AlreadyInitialized : Error()
+    data object SongNotLoaded : Error()
+    data object SongNotPlaying : Error()
+    data class PhoenixError(val details: String) : Error()
 
     // TODO: Add pre-defined default error messages for each error
     fun name(): String = this::class.simpleName ?: ""

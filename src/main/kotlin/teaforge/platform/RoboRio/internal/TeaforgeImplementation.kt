@@ -1,6 +1,8 @@
 package teaforge.platform.RoboRio.internal
 
+import com.ctre.phoenix6.CANBus
 import com.ctre.phoenix6.Orchestra
+import com.ctre.phoenix6.StatusCode
 import com.ctre.phoenix6.hardware.CANcoder
 import com.ctre.phoenix6.hardware.Pigeon2
 import com.ctre.phoenix6.hardware.TalonFX
@@ -15,21 +17,26 @@ import teaforge.HistoryEntry
 import teaforge.ProgramRunnerConfig
 import teaforge.ProgramRunnerInstance
 import teaforge.platform.RoboRio.*
-import teaforge.utils.*
+import teaforge.utils.Maybe
+import teaforge.utils.Result
+import teaforge.utils.map
+import teaforge.utils.valueOrDefault
 import java.io.File
 import java.io.IOException
 import java.nio.file.*
+import java.util.*
 
 data class RoboRioModel<TMessage, TModel>(
     val messageHistory: List<HistoryEntry<TMessage, TModel>>,
     val pwmPorts: PwmPorts,
-    val dioInputs: DioInputs,
-    val dioOutputs: DioOutputs,
+    val dioInputs: Map<DioPort, DigitalInput>,
+    val dioOutputs: Map<DioPort, DigitalOutput>,
     val analogInputs: AnalogPorts,
     val talonFXControllers: Map<Motor, TalonFX>,
     val pigeonControllers: Map<Pigeon, Pigeon2>,
     val encoderControllers: Map<Encoder, CANcoder>,
-    val currentlyPlaying: List<Orchestra>,
+    val loadedOrchestras: Map<Motor, Orchestra>,
+    val currentlyPlaying: Map<Motor, Orchestra>,
 )
 
 fun <TMessage, TModel> createRoboRioRunner(
@@ -115,7 +122,7 @@ data class DioInputs(
     val nine: DigitalInput,
 )
 
-data class DioOutputs(
+/*data class DioOutputs(
     val zero: DigitalOutput,
     val one: DigitalOutput,
     val two: DigitalOutput,
@@ -126,7 +133,7 @@ data class DioOutputs(
     val seven: DigitalOutput,
     val eight: DigitalOutput,
     val nine: DigitalOutput,
-)
+)*/
 
 data class AnalogPorts(
     val zero: AnalogInput,
@@ -137,8 +144,7 @@ data class AnalogPorts(
 
 fun <TMessage, TModel> initRoboRioRunner(args: List<String>): RoboRioModel<TMessage, TModel> {
     // Do any hardware initialization here
-    val createDioEntry = { port: DioPort -> DigitalInput(digitalIoPortToInt(port)) }
-    val createDioOutput = { port: DioPort -> DigitalOutput(digitalIoPortToInt(port)) }
+    CANBus()
     val createAnalogPortEntry = { port: AnalogPort -> AnalogInput(analogPortToInt(port)) }
 
     val pwmPorts =
@@ -155,34 +161,8 @@ fun <TMessage, TModel> initRoboRioRunner(args: List<String>): RoboRioModel<TMess
             nine = Spark(pwmPortToInt(PwmPort.Nine)),
         )
 
-    val dioInputs =
-        DioInputs(
-            zero = createDioEntry(DioPort.Zero),
-            one = createDioEntry(DioPort.One),
-            two = createDioEntry(DioPort.Two),
-            three = createDioEntry(DioPort.Three),
-            four = createDioEntry(DioPort.Four),
-            five = createDioEntry(DioPort.Five),
-            six = createDioEntry(DioPort.Six),
-            seven = createDioEntry(DioPort.Seven),
-            eight = createDioEntry(DioPort.Eight),
-            nine = createDioEntry(DioPort.Nine),
-        )
-
-
-    val dioOutputs =
-        DioOutputs(
-            zero = createDioOutput(DioPort.Zero),
-            one = createDioOutput(DioPort.One),
-            two = createDioOutput(DioPort.Two),
-            three = createDioOutput(DioPort.Three),
-            four = createDioOutput(DioPort.Four),
-            five = createDioOutput(DioPort.Five),
-            six = createDioOutput(DioPort.Six),
-            seven = createDioOutput(DioPort.Seven),
-            eight = createDioOutput(DioPort.Eight),
-            nine = createDioOutput(DioPort.Nine),
-        )
+    val dioInputs: Map<DioPort, DigitalInput> = emptyMap()
+    val dioOutputs: Map<DioPort, DigitalOutput> = emptyMap()
 
     val analogInputs =
         AnalogPorts(
@@ -205,7 +185,8 @@ fun <TMessage, TModel> initRoboRioRunner(args: List<String>): RoboRioModel<TMess
         talonFXControllers = talonFXControllers,
         encoderControllers = encoderControllers,
         pigeonControllers = pigeonControllers,
-        currentlyPlaying = emptyList()
+        loadedOrchestras = emptyMap(),
+        currentlyPlaying = emptyMap()
     )
 }
 
@@ -223,31 +204,59 @@ fun <TMessage, TModel> processEffect(
 
             Pair(model, Maybe.None)
         }
-        is Effect.PlaySong -> { // TODO: This effect is blocking (File read)!!! Add Orchestra initialization at robot init
-            val musicFile = File("${Filesystem.getDeployDirectory().absolutePath}/temp.chrp")
+
+        is Effect.LoadSong -> {
+            val musicFile = File("/home/lvuser/${model.currentlyPlaying.size}.chrp")
             try {
-                if (!musicFile.createNewFile()) {
-                    if (!musicFile.delete() || !musicFile.createNewFile()) {
-                        throw Exception()
-                    }
-                }
+                musicFile.createNewFile()
                 musicFile.writeBytes(effect.songData)
             } catch (_: Exception) {
-                model to effect.message(Error.ReadOnlyFileSystem)
+                val error: Maybe<Error> = Maybe.Some(Error.ReadOnlyFileSystem)
+                model to Maybe.Some(effect.message(effect.motor, error))
             }
 
-            val orchestra = Orchestra(listOf(getTalonFX(effect.motor, model)), musicFile.absolutePath)
-            orchestra.play()
+            val motor: TalonFX = getTalonFX(effect.motor, model)
+            val orchestra = Orchestra(listOf(motor), musicFile.absolutePath)
 
-            model.copy(currentlyPlaying = model.currentlyPlaying.plus(orchestra)) to Maybe.None
+            val loadedOrcs = model.loadedOrchestras.plus(effect.motor to orchestra)
+            val msg = effect.message(effect.motor, Maybe.None)
+
+            model.copy(loadedOrchestras = loadedOrcs) to Maybe.Some(msg)
+        }
+
+        is Effect.PlaySong -> {
+
+            val orcAndError: Pair<Maybe<Orchestra>, Maybe<Error>> = model.loadedOrchestras[effect.motor]?.let {
+                val result: StatusCode = it.play()
+                val error: Maybe<Error> = if (!result.isOK) {
+                    Maybe.Some(Error.PhoenixError(result.name))
+                } else {
+                    Maybe.None
+                }
+                Maybe.Some(it) to error
+            } ?: (Maybe.None to Maybe.Some(Error.SongNotLoaded))
+
+            val currentlyPlaying: Map<Motor, Orchestra> = orcAndError.first.map {
+                model.currentlyPlaying + (effect.motor to it)
+            }.valueOrDefault(model.currentlyPlaying)
+
+            model.copy(
+                loadedOrchestras = model.loadedOrchestras - effect.motor,
+                currentlyPlaying = currentlyPlaying
+            ) to Maybe.Some(effect.message(effect.motor, orcAndError.second))
         }
 
         is Effect.StopSong -> {
-            for (o in model.currentlyPlaying) {
-                o.stop()
-                o.close()
-            }
-            model.copy(currentlyPlaying = emptyList()) to Maybe.None
+
+            val error: Maybe<Error> = model.currentlyPlaying[effect.motor]?.let {
+                val result: StatusCode = it.stop()
+                it.close()
+                if (!result.isOK) Maybe.Some(Error.PhoenixError(result.name)) else Maybe.None
+            } ?: Maybe.Some(Error.SongNotPlaying)
+
+            model.copy(
+                currentlyPlaying = model.currentlyPlaying - effect.motor
+            ) to Maybe.Some(effect.message(effect.motor, error))
         }
 
         is Effect.SetCanMotorSpeed -> {
@@ -268,15 +277,31 @@ fun <TMessage, TModel> processEffect(
         }
 
         is Effect.SetDioPort -> {
-            val power: Boolean = when (effect.value) {
-                DioPortVoltage.LOW -> false
-                DioPortVoltage.HIGH -> true
+            val errorMessage: TMessage = effect.message(Result.Error(Error.AlreadyInitialized))
+            val isInput: Boolean = model.dioInputs.containsKey(effect.port)
+            val alreadyInitialized: Boolean = model.dioOutputs.containsKey(effect.port)
+
+            if (isInput) model to Maybe.Some(errorMessage)
+
+            val newModel: RoboRioModel<TMessage, TModel> = if (!alreadyInitialized) {
+                model.copy(dioOutputs = model.dioOutputs + (effect.port to DigitalOutput(effect.port.id)))
+            } else {
+                model
             }
-            getDioOutput(effect.port, model).set(power)
 
-            model to Maybe.None
+
+
+            newModel.dioOutputs[effect.port]?.let {
+                val power: Boolean = when (effect.value) {
+                    DioPortState.LOW -> false
+                    DioPortState.HIGH -> true
+                }
+                it.set(power)
+                newModel to Maybe.None
+            }
+
+            newModel to Maybe.Some(errorMessage)
         }
-
     }
 }
 
@@ -294,21 +319,6 @@ fun pwmPortToInt(port: PwmPort): Int {
         PwmPort.Seven -> 7
         PwmPort.Eight -> 8
         PwmPort.Nine -> 9
-    }
-}
-
-fun digitalIoPortToInt(port: DioPort): Int {
-    return when (port) {
-        DioPort.Zero -> 0
-        DioPort.One -> 1
-        DioPort.Two -> 2
-        DioPort.Three -> 3
-        DioPort.Four -> 4
-        DioPort.Five -> 5
-        DioPort.Six -> 6
-        DioPort.Seven -> 7
-        DioPort.Eight -> 8
-        DioPort.Nine -> 9
     }
 }
 
@@ -339,82 +349,6 @@ fun getDioPortValue(port: DigitalInput): DioPortStatus {
         DioPortStatus.Open
     } else {
         DioPortStatus.Closed
-    }
-}
-
-fun <TMessage, TModel> getDioInput(
-    port: DioPort,
-    model: RoboRioModel<TMessage, TModel>
-): DigitalInput {
-    return when (port) {
-        DioPort.Zero -> {
-            model.dioInputs.zero
-        }
-        DioPort.One -> {
-            model.dioInputs.one
-        }
-        DioPort.Two -> {
-            model.dioInputs.two
-        }
-        DioPort.Three -> {
-            model.dioInputs.three
-        }
-        DioPort.Four -> {
-            model.dioInputs.four
-        }
-        DioPort.Five -> {
-            model.dioInputs.five
-        }
-        DioPort.Six -> {
-            model.dioInputs.six
-        }
-        DioPort.Seven -> {
-            model.dioInputs.seven
-        }
-        DioPort.Eight -> {
-            model.dioInputs.eight
-        }
-        DioPort.Nine -> {
-            model.dioInputs.nine
-        }
-    }
-}
-
-fun <TMessage, TModel> getDioOutput(
-    port: DioPort,
-    model: RoboRioModel<TMessage, TModel>
-): DigitalOutput {
-    return when (port) {
-        DioPort.Zero -> {
-            model.dioOutputs.zero
-        }
-        DioPort.One -> {
-            model.dioOutputs.one
-        }
-        DioPort.Two -> {
-            model.dioOutputs.two
-        }
-        DioPort.Three -> {
-            model.dioOutputs.three
-        }
-        DioPort.Four -> {
-            model.dioOutputs.four
-        }
-        DioPort.Five -> {
-            model.dioOutputs.five
-        }
-        DioPort.Six -> {
-            model.dioOutputs.six
-        }
-        DioPort.Seven -> {
-            model.dioOutputs.seven
-        }
-        DioPort.Eight -> {
-            model.dioOutputs.eight
-        }
-        DioPort.Nine -> {
-            model.dioOutputs.nine
-        }
     }
 }
 
@@ -487,11 +421,13 @@ fun <TMessage, TModel> getPigeon2(pigeon: Pigeon, model: RoboRioModel<TMessage, 
 
 fun getRunningRobotState() : RunningRobotState {
     val state: RunningRobotState =
-        if (RobotState.isTeleop()) { RunningRobotState.Teleop }
+        if (RobotState.isDisabled()) { RunningRobotState.Disabled }
+        else if (RobotState.isTeleop()) { RunningRobotState.Teleop }
         else if (RobotState.isAutonomous()) { RunningRobotState.Autonomous }
         else if (RobotState.isTest()) { RunningRobotState.Test }
         else if (RobotState.isEStopped()) { RunningRobotState.EStopped }
-        else { RunningRobotState.Disabled }
+        else RunningRobotState.Unknown
+
 
     return state
 }
