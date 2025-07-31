@@ -12,6 +12,14 @@ project.version = "0.1.3"
 repositories {
     mavenCentral()
     flatDir { dirs("libs") }
+    maven {
+        url = uri("https://maven.ctr-electronics.com/release/")
+    }
+}
+/*
+maven {
+        url = uri("https://maven.ctr-electronics.com/release/")
+    }
 }
 
 dependencies {
@@ -22,6 +30,20 @@ dependencies {
     implementation("edu.wpi.first.wpilibj:wpilibj-java:2025.3.2")
     implementation("edu.wpi.first.wpiutil:wpiutil-java:2025.3.2")
     implementation("edu.wpi.first.hal:hal-java:2025.3.2")
+    implementation("edu.wpi.first.wpimath:wpimath-java:2025.3.2")
+
+    implementation("com.ctre.phoenix6:wpiapi-java:25.3.2")
+ */
+dependencies {
+    implementation(kotlin("stdlib"))
+
+    api(files("libs/teaforge-0.1.3.jar"))
+
+    implementation("edu.wpi.first.wpilibj:wpilibj-java:2025.3.2")
+    implementation("edu.wpi.first.wpiutil:wpiutil-java:2025.3.2")
+    implementation("edu.wpi.first.hal:hal-java:2025.3.2")
+
+    implementation("com.ctre.phoenix6:wpiapi-java:25.3.2")
 
     testImplementation(kotlin("test"))
 }
