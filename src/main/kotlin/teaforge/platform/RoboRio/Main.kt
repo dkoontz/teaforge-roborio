@@ -16,6 +16,7 @@ sealed interface Effect<out TMessage> {
     data class SetPwmMotorSpeed<TMessage>(val pwmSlot: PwmPort, val value: Double) :
             Effect<TMessage>
 
+    data class SetCANBusMotorSpeed<TMessage>(val deviceId: CANMotorID, val value: Double): Effect<TMessage>
     // all the other effects go here
     //   - send message over CANbus
     //   - send message over I2C
@@ -108,6 +109,15 @@ enum class AnalogPort {
 enum class DioPortStatus {
     Open,
     Closed,
+}
+
+enum class CANMotorID {
+    Zero,
+    One,
+    Two,
+    Three,
+    Four,
+    Five,
 }
 
 sealed interface GamepadButtonState {

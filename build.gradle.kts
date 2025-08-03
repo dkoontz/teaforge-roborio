@@ -43,7 +43,10 @@ dependencies {
     implementation("edu.wpi.first.wpiutil:wpiutil-java:2025.3.2")
     implementation("edu.wpi.first.hal:hal-java:2025.3.2")
 
+
     implementation("com.ctre.phoenix6:wpiapi-java:25.3.2")
+    implementation("com.ctre.phoenix:api-java:5.35.0")
+    implementation("com.ctre.phoenix:wpiapi-java:5.35.0")
 
     testImplementation(kotlin("test"))
 }

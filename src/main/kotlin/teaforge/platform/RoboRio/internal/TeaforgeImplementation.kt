@@ -1,5 +1,6 @@
 package teaforge.platform.RoboRio.internal
 
+import com.ctre.phoenix6.hardware.TalonFX
 import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.DigitalInput
@@ -11,11 +12,14 @@ import teaforge.platform.*
 import teaforge.platform.RoboRio.*
 import teaforge.utils.Maybe
 
+
+
 data class RoboRioModel<TMessage, TModel>(
         val messageHistory: List<HistoryEntry<TMessage, TModel>>,
         val pwmPorts: PwmPorts,
         val dioPorts: DioPorts,
         val analogInputs: AnalogPorts,
+        val canMotors: CANMotors,
 )
 
 fun <TMessage, TModel> createRoboRioRunner(
@@ -108,6 +112,15 @@ data class AnalogPorts(
         val three: AnalogInput,
 )
 
+data class CANMotors(
+    val zero: TalonFX,
+    val one: TalonFX,
+    val two: TalonFX,
+    val three: TalonFX,
+    val four: TalonFX,
+    val five: TalonFX,
+)
+
 fun <TMessage, TModel> initRoboRioRunner(args: List<String>): RoboRioModel<TMessage, TModel> {
     // Do any hardware initialization here
     val createDioEntry = { port: DioPort -> DigitalInput(digitalIoPortToInt(port)) }
@@ -149,11 +162,24 @@ fun <TMessage, TModel> initRoboRioRunner(args: List<String>): RoboRioModel<TMess
                     three = createAnalogPortEntry(AnalogPort.Three),
             )
 
+    val canMotors =
+        CANMotors(
+            zero = TalonFX(canIdToInt(CANMotorID.Zero)),
+            one = TalonFX(canIdToInt(CANMotorID.One)),
+            two = TalonFX(canIdToInt(CANMotorID.Two)),
+            three = TalonFX(canIdToInt(CANMotorID.Three)),
+            four = TalonFX(canIdToInt(CANMotorID.Four)),
+            five = TalonFX(canIdToInt(CANMotorID.Five)),
+        )
+
+
+
     return RoboRioModel(
             messageHistory = emptyList(),
             pwmPorts = pwmPorts,
             dioPorts = dioPorts,
             analogInputs = analogInputs,
+            canMotors = canMotors,
     )
 }
 
@@ -168,6 +194,11 @@ fun <TMessage, TModel> processEffect(
         }
         is Effect.SetPwmMotorSpeed -> {
             getPwmPort(effect.pwmSlot, model).set(effect.value)
+
+            Pair(model, Maybe.None)
+        }
+        is Effect.SetCANBusMotorSpeed -> {
+            getCANDevice(effect.deviceId, model).set(effect.value)
 
             Pair(model, Maybe.None)
         }
@@ -212,6 +243,17 @@ fun analogPortToInt(port: AnalogPort): Int {
         AnalogPort.One -> 1
         AnalogPort.Two -> 2
         AnalogPort.Three -> 3
+    }
+}
+
+fun canIdToInt(id : CANMotorID): Int {
+    return when (id) {
+        CANMotorID.Zero -> 0
+        CANMotorID.One -> 1
+        CANMotorID.Two -> 2
+        CANMotorID.Three -> 3
+        CANMotorID.Four -> 4
+        CANMotorID.Five -> 5
     }
 }
 
@@ -327,4 +369,28 @@ fun <TMessage, TModel> getPwmPort(port: PwmPort, model: RoboRioModel<TMessage, T
             model.pwmPorts.nine
         }
     }
+}
+
+fun <TMessage, TModel> getCANDevice(id : CANMotorID, model: RoboRioModel<TMessage, TModel>): TalonFX{
+    return when (id){
+        CANMotorID.Zero -> {
+            model.canMotors.zero
+        }
+        CANMotorID.One -> {
+            model.canMotors.one
+        }
+        CANMotorID.Two -> {
+            model.canMotors.two
+        }
+        CANMotorID.Three -> {
+            model.canMotors.three
+        }
+        CANMotorID.Four -> {
+            model.canMotors.four
+        }
+        CANMotorID.Five -> {
+            model.canMotors.five
+        }
+    }
+
 }
