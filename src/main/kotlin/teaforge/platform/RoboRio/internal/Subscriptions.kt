@@ -339,9 +339,7 @@ fun <TMessage, TModel> runReadPigeon(
                                 )
 
                         Triple(model, updatedState, Maybe.Some(state.config.message(state.config.pigeon, newValue)))
-                }
-
-                Triple(model, state, Maybe.None)
+                } ?: Triple(model, state, Maybe.None)
         } else {
                 Triple(model, state, Maybe.None)
         }
