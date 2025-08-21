@@ -277,7 +277,8 @@ fun <TMessage, TModel> processEffect(
         }
 
         is Effect.SetDioPort -> {
-            val errorMessage: TMessage = effect.message(Result.Error(Error.AlreadyInitialized))
+            val errorMessage = effect.message(Result.Error(Error.AlreadyInitialized))
+            val successMessage = effect.message(Result.Success(effect.port))
             val isInput: Boolean = model.dioInputs.containsKey(effect.port)
             val alreadyInitialized: Boolean = model.dioOutputs.containsKey(effect.port)
 
@@ -291,16 +292,16 @@ fun <TMessage, TModel> processEffect(
 
 
 
-            newModel.dioOutputs[effect.port]?.let {
+            return newModel.dioOutputs[effect.port]?.let {
                 val power: Boolean = when (effect.value) {
                     DioPortState.LOW -> false
                     DioPortState.HIGH -> true
                 }
                 it.set(power)
-                newModel to Maybe.None
-            }
+                newModel to Maybe.Some(successMessage)
+            } ?: (newModel to Maybe.Some(errorMessage))
 
-            newModel to Maybe.Some(errorMessage)
+
         }
     }
 }

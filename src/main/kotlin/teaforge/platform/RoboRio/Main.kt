@@ -153,20 +153,20 @@ enum class DioPortState {
 }
 
 enum class Motor(val id: Int) {
-    FrontLeftDrive(2),
-    FrontLeftSteer(3),
-    FrontRightDrive(7),
-    FrontRightSteer(0),
-    BackLeftDrive(6),
-    BackLeftSteer(5),
-    BackRightDrive(4),
-    BackRightSteer(1)
+    FrontLeftDrive(4),
+    FrontLeftSteer(1),
+    FrontRightDrive(6),
+    FrontRightSteer(5),
+    BackLeftDrive(7),
+    BackLeftSteer(0),
+    BackRightDrive(2),
+    BackRightSteer(3)
 }
 
 enum class Encoder(val id: Int) {
-    FrontLeft(11),
-    FrontRight(9),
-    BackLeft(10),
+    FrontLeft(9),
+    FrontRight(10),
+    BackLeft(11),
     BackRight(8)
 }
 

@@ -291,7 +291,6 @@ fun <TMessage, TModel> runHasRobotStateChanged(
         val newValue = getRunningRobotState()
 
         return if (newValue != state.lastReadValue) {
-                println("Has changed!!!")
                 val updatedState =
                         state.copy(
                                 lastReadValue = newValue,
@@ -312,13 +311,14 @@ fun <TMessage, TModel> runReadCANcoder(
         return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
                 val cancoder = getCANcoder(state.config.encoder, model)
                 val newValue = cancoder.absolutePosition.valueAsDouble
+                val normalized = newValue * 360
 
                 val updatedState =
                         state.copy(
                                 lastReadTimeMicroseconds = currentMicroseconds,
                         )
 
-                Triple(model, updatedState, Maybe.Some(state.config.message(state.config.encoder, newValue)))
+                Triple(model, updatedState, Maybe.Some(state.config.message(state.config.encoder, normalized)))
         } else {
                 Triple(model, state, Maybe.None)
         }
