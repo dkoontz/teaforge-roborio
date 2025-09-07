@@ -23,6 +23,11 @@ sealed interface Effect<out TMessage> {
 }
 
 sealed interface Subscription<out TMessage> {
+    data class Interval<TMessage>(
+        val millisecondsBetweenReads: Int,
+        val message: (Long) -> TMessage,
+    ) : Subscription<TMessage>
+
     data class DioPortValue<TMessage>(
             val port: DioPort,
             val millisecondsBetweenReads: Int,
