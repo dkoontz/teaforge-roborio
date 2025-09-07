@@ -6,6 +6,11 @@ import teaforge.platform.RoboRio.*
 import teaforge.utils.Maybe
 
 sealed interface SubscriptionState<TMessage> {
+        data class Interval<TMessage>(
+                val config: Subscription.Interval<TMessage>,
+                val nextReadTimeMicroseconds: Long,
+        ) : SubscriptionState<TMessage>
+
         data class DioPortValue<TMessage>(
                 val config: Subscription.DioPortValue<TMessage>,
                 val lastReadTimeMicroseconds: Long,
@@ -80,6 +85,20 @@ fun <TMessage, TModel> createHidPortValueState(
         )
 }
 
+fun <TMessage, TModel> createInterval(
+        model: RoboRioModel<TMessage, TModel>,
+        config: Subscription.Interval<TMessage>
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>>{
+   val currentTime = HALUtil.getFPGATime()
+   return Pair(
+           model,
+           SubscriptionState.Interval(
+                   config = config,
+                   nextReadTimeMicroseconds = config.millisecondsBetweenReads * 1_000L + currentTime
+           )
+   )
+}
+
 fun <TMessage, TModel> processSubscription(
         model: RoboRioModel<TMessage, TModel>,
         subscriptionState: SubscriptionState<TMessage>
@@ -92,6 +111,7 @@ fun <TMessage, TModel> processSubscription(
                 is SubscriptionState.AnalogInputValue ->
                         runReadAnalogInput(model, subscriptionState)
                 is SubscriptionState.HidPortValue -> runReadHidPort(model, subscriptionState)
+                is SubscriptionState.Interval -> runReadInterval(model, subscriptionState)
         }
 }
 
@@ -105,6 +125,7 @@ fun <TMessage, TModel> startSubscriptionHandler(
                         createDioPortValueChangedState(model, subscription)
                 is Subscription.AnalogInputValue -> createAnalogInputEntryState(model, subscription)
                 is Subscription.HidPortValue -> createHidPortValueState(model, subscription)
+                is Subscription.Interval -> createInterval(model, subscription)
         }
 }
 
@@ -117,6 +138,7 @@ fun <TMessage, TModel> stopSubscriptionHandler(
                 is SubscriptionState.DioPortValueChanged -> model
                 is SubscriptionState.AnalogInputValue -> model
                 is SubscriptionState.HidPortValue -> model
+                is SubscriptionState.Interval -> model
         }
 }
 
@@ -205,4 +227,26 @@ fun <TMessage, TModel> runReadHidPort(
                 )
 
         return Triple(model, state, Maybe.Some(state.config.message(hidValue)))
+}
+
+fun <TMessage, TModel> runReadInterval(
+        model: RoboRioModel<TMessage, TModel>,
+        state: SubscriptionState.Interval<TMessage>
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>>{
+        val currentMicroseconds = HALUtil.getFPGATime()
+        return if (currentMicroseconds >= state.nextReadTimeMicroseconds){
+                val intervalMicroseconds = state.config.millisecondsBetweenReads * 1_000L
+                val intervalsMissed = ((currentMicroseconds - state.nextReadTimeMicroseconds) / intervalMicroseconds) + 1
+
+                val newNextReadTime = state.nextReadTimeMicroseconds + intervalMicroseconds * intervalsMissed
+
+                val elapsedMilliseconds = (currentMicroseconds - state.nextReadTimeMicroseconds) / 1_000L
+
+                val updatedState = state.copy(nextReadTimeMicroseconds = newNextReadTime)
+                Triple(model, updatedState, Maybe.Some(state.config.message(elapsedMilliseconds)))
+        }
+        else{
+                Triple(model, state, Maybe.None)
+        }
+
 }
