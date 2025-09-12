@@ -94,7 +94,7 @@ fun <TMessage, TModel> createInterval(
            model,
            SubscriptionState.Interval(
                    config = config,
-                   nextReadTimeMicroseconds = config.millisecondsBetweenReads * 1_000L + currentTime
+                   nextReadTimeMicroseconds = (config.millisecondsBetweenReads * 1_000L) + currentTime
            )
    )
 }
@@ -235,15 +235,15 @@ fun <TMessage, TModel> runReadInterval(
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>>{
         val currentMicroseconds = HALUtil.getFPGATime()
         return if (currentMicroseconds >= state.nextReadTimeMicroseconds){
+                val elapsedMicroseconds = currentMicroseconds - state.nextReadTimeMicroseconds
+                
                 val intervalMicroseconds = state.config.millisecondsBetweenReads * 1_000L
-                val intervalsMissed = ((currentMicroseconds - state.nextReadTimeMicroseconds) / intervalMicroseconds) + 1
+                val intervalsMissed = elapsedMicroseconds / intervalMicroseconds
 
-                val newNextReadTime = state.nextReadTimeMicroseconds + intervalMicroseconds * intervalsMissed
-
-                val elapsedMilliseconds = (currentMicroseconds - state.nextReadTimeMicroseconds) / 1_000L
+                val newNextReadTime = state.nextReadTimeMicroseconds + (intervalMicroseconds * (intervalsMissed + 1))
 
                 val updatedState = state.copy(nextReadTimeMicroseconds = newNextReadTime)
-                Triple(model, updatedState, Maybe.Some(state.config.message(elapsedMilliseconds)))
+                Triple(model, updatedState, Maybe.Some(state.config.message(elapsedMicroseconds / 1_000L)))
         }
         else{
                 Triple(model, state, Maybe.None)
