@@ -111,7 +111,7 @@ sealed interface Subscription<out TMessage> {
 
     data class WebSocket<TMessage>(
         val url: String,
-        val message: (Maybe<String>) -> TMessage
+        val message: (String) -> TMessage
     ) : Subscription<TMessage>
 
     data class DigitalPortValue<TMessage>(

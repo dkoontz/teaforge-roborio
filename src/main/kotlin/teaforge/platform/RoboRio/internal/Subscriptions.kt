@@ -480,11 +480,15 @@ fun <TMessage, TModel> runReadWebSocket(
         (frame as? Frame.Text)?.let{ Maybe.Some(it.readText()) } ?: Maybe.None
     } ?: Maybe.None
 
-    return Triple(
-        model,
-        state,
-        Maybe.Some(state.config.message(read))
-    )
+    return if(read is Maybe.Some){
+        Triple(
+            model,
+            state,
+            Maybe.Some(state.config.message(read.toString()))
+        )
+    } else{
+        Triple(model, state, Maybe.None)
+    }
 }
 
 fun <TMessage, TModel> runReadDigitalPortChanged(
