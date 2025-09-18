@@ -7,6 +7,11 @@ import teaforge.platform.RoboRio.*
 import teaforge.utils.*
 
 sealed interface SubscriptionState<TMessage> {
+        data class Interval<TMessage>(
+                val config: Subscription.Interval<TMessage>,
+                val nextReadTimeMicroseconds: Long,
+        ) : SubscriptionState<TMessage>
+
         data class DioPortValue<TMessage>(
                 val config: Subscription.DioPortValue<TMessage>,
                 val lastReadTimeMicroseconds: Long,
@@ -147,6 +152,20 @@ fun <TMessage, TModel> createPigeonValueState(
 
 
 
+fun <TMessage, TModel> createInterval(
+        model: RoboRioModel<TMessage, TModel>,
+        config: Subscription.Interval<TMessage>
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>>{
+   val currentTime = HALUtil.getFPGATime()
+   return Pair(
+           model,
+           SubscriptionState.Interval(
+                   config = config,
+                   nextReadTimeMicroseconds = (config.millisecondsBetweenReads * 1_000L) + currentTime
+           )
+   )
+}
+
 fun <TMessage, TModel> processSubscription(
         model: RoboRioModel<TMessage, TModel>,
         subscriptionState: SubscriptionState<TMessage>
@@ -161,6 +180,7 @@ fun <TMessage, TModel> processSubscription(
                 is SubscriptionState.RobotStateChanged -> runHasRobotStateChanged(model, subscriptionState)
                 is SubscriptionState.CANcoderValue -> runReadCANcoder(model, subscriptionState)
                 is SubscriptionState.PigeonValue -> runReadPigeon(model, subscriptionState)
+                is SubscriptionState.Interval -> runReadInterval(model, subscriptionState)
         }
 }
 
@@ -176,6 +196,7 @@ fun <TMessage, TModel> startSubscriptionHandler(
                 is Subscription.RobotStateChanged -> createRobotStateChangedState(model, subscription)
                 is Subscription.CANcoderValue -> createCANcoderValueState(model, subscription)
                 is Subscription.PigeonValue -> createPigeonValueState(model, subscription)
+                is Subscription.Interval -> createInterval(model, subscription)
         }
 }
 
@@ -191,6 +212,7 @@ fun <TMessage, TModel> stopSubscriptionHandler(
                 is SubscriptionState.RobotStateChanged -> model
                 is SubscriptionState.CANcoderValue -> model
                 is SubscriptionState.PigeonValue<*> -> model
+                is SubscriptionState.Interval -> model
         }
 }
 
@@ -343,4 +365,26 @@ fun <TMessage, TModel> runReadPigeon(
         } else {
                 Triple(model, state, Maybe.None)
         }
+}
+
+fun <TMessage, TModel> runReadInterval(
+        model: RoboRioModel<TMessage, TModel>,
+        state: SubscriptionState.Interval<TMessage>
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>>{
+        val currentMicroseconds = HALUtil.getFPGATime()
+        return if (currentMicroseconds >= state.nextReadTimeMicroseconds){
+                val elapsedMicroseconds = currentMicroseconds - state.nextReadTimeMicroseconds
+
+                val intervalMicroseconds = state.config.millisecondsBetweenReads * 1_000L
+                val intervalsMissed = elapsedMicroseconds / intervalMicroseconds
+
+                val newNextReadTime = state.nextReadTimeMicroseconds + (intervalMicroseconds * (intervalsMissed + 1))
+
+                val updatedState = state.copy(nextReadTimeMicroseconds = newNextReadTime)
+                Triple(model, updatedState, Maybe.Some(state.config.message(elapsedMicroseconds / 1_000L)))
+        }
+        else{
+                Triple(model, state, Maybe.None)
+        }
+
 }
