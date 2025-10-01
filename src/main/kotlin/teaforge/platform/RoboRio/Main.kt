@@ -1,5 +1,7 @@
 package teaforge.platform.RoboRio
 
+import com.ctre.phoenix6.hardware.CANcoder
+import com.ctre.phoenix6.hardware.Pigeon2
 import com.ctre.phoenix6.hardware.TalonFX
 import com.revrobotics.spark.SparkMax
 import edu.wpi.first.math.geometry.Rotation3d
@@ -21,32 +23,32 @@ sealed interface Effect<out TMessage> {
     data class Log(val msg: String) : Effect<Nothing>
 
     data class LoadSong<TMessage>(
-        val motor: MotorToken.TalonMotorToken,
+        val motor: CanDeviceToken.MotorToken.TalonMotorToken,
         val songData: ByteArray,
-        val message: (MotorToken.TalonMotorToken, Maybe<Error>) -> TMessage
+        val message: (CanDeviceToken.MotorToken.TalonMotorToken, Maybe<Error>) -> TMessage
     ) : Effect<TMessage>
 
     data class PlaySong<TMessage>(
-        val motor: MotorToken.TalonMotorToken,
-        val message: (MotorToken.TalonMotorToken, Maybe<Error>) -> TMessage
+        val motor: CanDeviceToken.MotorToken.TalonMotorToken,
+        val message: (CanDeviceToken.MotorToken.TalonMotorToken, Maybe<Error>) -> TMessage
     ) : Effect<TMessage>
 
     data class StopSong<TMessage>(
-        val motor: MotorToken.TalonMotorToken,
-        val message: (MotorToken.TalonMotorToken, Maybe<Error>) -> TMessage
+        val motor: CanDeviceToken.MotorToken.TalonMotorToken,
+        val message: (CanDeviceToken.MotorToken.TalonMotorToken, Maybe<Error>) -> TMessage
     ) : Effect<TMessage>
 
     data class SetPwmMotorSpeed<TMessage>(val pwmSlot: PwmPort, val value: Double) :
         Effect<TMessage>
 
-    data class InitMotor<TMessage>(
-        val type: MotorType,
+    data class InitCanDevice<TMessage>(
+        val type: CanDeviceType,
         val id: Int,
-        val message: (InitMotor<TMessage>, Result<MotorToken<*>, Error>) -> TMessage
+        val message: (InitCanDevice<TMessage>, Result<CanDeviceToken<*>, Error>) -> TMessage
     ) : Effect<TMessage>
 
     data class SetCanMotorSpeed(
-        val motor: MotorToken<*>,
+        val motor: CanDeviceToken.MotorToken<*>,
         val value: Double
     ) : Effect<Nothing>
 
@@ -102,15 +104,15 @@ sealed interface Subscription<out TMessage> {
     ) : Subscription<TMessage>
 
     data class CANcoderValue<TMessage>(
-        val encoder: Encoder,
+        val encoder: CanDeviceToken.EncoderToken,
         val millisecondsBetweenReads: Int,
-        val message: (Encoder, Double) -> TMessage
+        val message: (CanDeviceToken.EncoderToken, Double) -> TMessage
     ) : Subscription<TMessage>
 
     data class PigeonValue<TMessage>(
-        val pigeon: Pigeon,
+        val pigeon: CanDeviceToken.PigeonToken,
         val millisecondsBetweenReads: Int,
-        val message: (Pigeon, Rotation3d) -> TMessage
+        val message: (CanDeviceToken.PigeonToken, Rotation3d) -> TMessage
     ) : Subscription<TMessage>
 
 
@@ -179,17 +181,23 @@ enum class DioPortState {
     BackRightSteer(3)
 }*/
 
-sealed interface MotorToken<TMotor : Any> {
-    data class NeoMotorToken internal constructor(val id: Int) : MotorToken<SparkMax>
-    data class TalonMotorToken internal constructor(val id: Int) : MotorToken<TalonFX>
+sealed interface CanDeviceToken<TDevice : Any> {
+    sealed interface MotorToken<TMotor : Any> : CanDeviceToken<TMotor> {
+        data class NeoMotorToken internal constructor(val id: Int) : MotorToken<SparkMax>
+        data class TalonMotorToken internal constructor(val id: Int) : MotorToken<TalonFX>
+    }
+    data class EncoderToken internal constructor(val id: Int) : CanDeviceToken<CANcoder>
+    data class PigeonToken internal constructor(val id: Int) : CanDeviceToken<Pigeon2>
 }
 
-enum class MotorType {
+enum class CanDeviceType {
     Neo,
-    Talon
+    Talon,
+    Encoder,
+    Pigeon
 }
 
-enum class Encoder(val id: Int) {
+/*enum class Encoder(val id: Int) {
     FrontLeft(9),
     FrontRight(10),
     BackLeft(11),
@@ -198,7 +206,7 @@ enum class Encoder(val id: Int) {
 
 enum class Pigeon(val id: Int) {
     CentralPigeon(12)
-}
+}*/
 
 sealed interface GamepadButtonState {
     object Pressed : GamepadButtonState
