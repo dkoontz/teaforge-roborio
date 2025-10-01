@@ -6,6 +6,9 @@ import com.ctre.phoenix6.StatusCode
 import com.ctre.phoenix6.hardware.CANcoder
 import com.ctre.phoenix6.hardware.Pigeon2
 import com.ctre.phoenix6.hardware.TalonFX
+import com.revrobotics.REVLibError
+import com.revrobotics.spark.SparkLowLevel
+import com.revrobotics.spark.SparkMax
 import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.DigitalInput
@@ -32,7 +35,7 @@ data class RoboRioModel<TMessage, TModel>(
     val dioInputs: Map<DioPort, DigitalInput>,
     val dioOutputs: Map<DioPort, DigitalOutput>,
     val analogInputs: AnalogPorts,
-    val motorControllers: Map<MotorToken, Motor>,
+    val motorControllers: MotorRegistry,
     val pigeonControllers: Map<Pigeon, Pigeon2>,
     val encoderControllers: Map<Encoder, CANcoder>,
     val loadedOrchestras: Map<MotorToken.TalonMotorToken, Orchestra>,
@@ -172,7 +175,7 @@ fun <TMessage, TModel> initRoboRioRunner(args: List<String>): RoboRioModel<TMess
             three = createAnalogPortEntry(AnalogPort.Three),
         )
 
-    val talonFXControllers = Motor.entries.associateWith { TalonFX(it.id) }
+    val motorControllers = MotorRegistry()
     val encoderControllers = Encoder.entries.associateWith { CANcoder(it.id) }
     val pigeonControllers = Pigeon.entries.associateWith { Pigeon2(it.id) }
 
@@ -182,7 +185,7 @@ fun <TMessage, TModel> initRoboRioRunner(args: List<String>): RoboRioModel<TMess
         dioInputs = dioInputs,
         dioOutputs = dioOutputs,
         analogInputs = analogInputs,
-        talonFXControllers = talonFXControllers,
+        motorControllers = motorControllers,
         encoderControllers = encoderControllers,
         pigeonControllers = pigeonControllers,
         loadedOrchestras = emptyMap(),
@@ -236,7 +239,7 @@ fun <TMessage, TModel> processEffect(
                 Maybe.Some(it) to error
             } ?: (Maybe.None to Maybe.Some(Error.SongNotLoaded))
 
-            val currentlyPlaying: Map<Motor, Orchestra> = orcAndError.first.map {
+            val currentlyPlaying: Map<MotorToken.TalonMotorToken, Orchestra> = orcAndError.first.map {
                 model.currentlyPlaying + (effect.motor to it)
             }.valueOrDefault(model.currentlyPlaying)
 
@@ -260,7 +263,10 @@ fun <TMessage, TModel> processEffect(
         }
 
         is Effect.SetCanMotorSpeed -> {
-            getTalonFX(effect.motor, model).set(effect.value)
+            when (effect.motor) {
+                is MotorToken.TalonMotorToken -> getTalonFX(effect.motor, model).set(effect.value)
+                is MotorToken.NeoMotorToken -> getSparkMax(effect.motor, model).set(effect.value)
+            }
             return model to Maybe.None
         }
 
@@ -303,12 +309,49 @@ fun <TMessage, TModel> processEffect(
 
 
         }
+
+        is Effect.InitMotor -> {
+            // Local helpers keep success/error boilerplate out of the branches.
+            fun <C : Any> success(token: MotorToken<C>, controller: C): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
+                val result = Result.Success<MotorToken<*>, Error>(token)
+                val newModel = model.copy(motorControllers = model.motorControllers.plus(token, controller))
+                val msg = effect.message(effect, result)
+                return newModel to Maybe.Some(msg)
+            }
+
+            fun failure(error: Error): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
+                val result = Result.Error<MotorToken<*>, Error>(error)
+                return model to Maybe.Some(effect.message(effect, result))
+            }
+
+            when (effect.type) {
+                MotorType.Neo -> {
+                    val motor = SparkMax(effect.id, SparkLowLevel.MotorType.kBrushless)
+                    val connected = motor.lastError == REVLibError.kOk && !motor.firmwareString.isNullOrEmpty()
+                    if (connected) {
+                        success(MotorToken.NeoMotorToken(effect.id), motor)
+                    } else {
+                        failure(Error.RevError(motor.lastError.name))
+                    }
+                }
+
+                MotorType.Talon -> {
+                    val motor = TalonFX(effect.id)
+                    val status = motor.deviceTemp.refresh().status
+                    if (status.isOK) {
+                        success(MotorToken.TalonMotorToken(effect.id), motor)
+                    } else {
+                        failure(Error.PhoenixError(status.name))
+                    }
+                }
+            }
+        }
     }
 }
 
 // Utility functions
 
-fun pwmPortToInt(port: PwmPort): Int {
+private fun pwmPortToInt(port: PwmPort): Int {
     return when (port) {
         PwmPort.Zero -> 0
         PwmPort.One -> 1
@@ -323,7 +366,7 @@ fun pwmPortToInt(port: PwmPort): Int {
     }
 }
 
-fun analogPortToInt(port: AnalogPort): Int {
+private fun analogPortToInt(port: AnalogPort): Int {
     return when (port) {
         AnalogPort.Zero -> 0
         AnalogPort.One -> 1
@@ -345,7 +388,7 @@ private fun log(msg: String) {
     )
 }
 
-fun getDioPortValue(port: DigitalInput): DioPortStatus {
+private fun getDioPortValue(port: DigitalInput): DioPortStatus {
     return if (port.get()) {
         DioPortStatus.Open
     } else {
@@ -353,7 +396,7 @@ fun getDioPortValue(port: DigitalInput): DioPortStatus {
     }
 }
 
-fun <TMessage, TModel> getAnalogPort(
+private fun <TMessage, TModel> getAnalogPort(
     port: AnalogPort,
     model: RoboRioModel<TMessage, TModel>
 ): AnalogInput {
@@ -373,7 +416,7 @@ fun <TMessage, TModel> getAnalogPort(
     }
 }
 
-fun <TMessage, TModel> getPwmPort(port: PwmPort, model: RoboRioModel<TMessage, TModel>): Spark {
+private fun <TMessage, TModel> getPwmPort(port: PwmPort, model: RoboRioModel<TMessage, TModel>): Spark {
     return when (port) {
         PwmPort.Zero -> {
             model.pwmPorts.zero
@@ -408,15 +451,21 @@ fun <TMessage, TModel> getPwmPort(port: PwmPort, model: RoboRioModel<TMessage, T
     }
 }
 
-fun <TMessage, TModel> getTalonFX(motor: Motor, model: RoboRioModel<TMessage, TModel>) : TalonFX {
-    return model.talonFXControllers[motor]!!
-}
+private fun <TMessage, TModel> getTalonFX(
+    motor: MotorToken.TalonMotorToken,
+    model: RoboRioModel<TMessage, TModel>
+) : TalonFX = model.motorControllers.get(motor)
 
-fun <TMessage, TModel> getCANcoder(encoder: Encoder, model: RoboRioModel<TMessage, TModel>) : CANcoder {
+private fun <TMessage, TModel> getSparkMax(
+    motor: MotorToken.NeoMotorToken,
+    model: RoboRioModel<TMessage, TModel>
+) : SparkMax = model.motorControllers.get(motor)
+
+private fun <TMessage, TModel> getCANcoder(encoder: Encoder, model: RoboRioModel<TMessage, TModel>) : CANcoder {
     return model.encoderControllers[encoder]!!
 }
 
-fun <TMessage, TModel> getPigeon2(pigeon: Pigeon, model: RoboRioModel<TMessage, TModel>) : Pigeon2 {
+private fun <TMessage, TModel> getPigeon2(pigeon: Pigeon, model: RoboRioModel<TMessage, TModel>) : Pigeon2 {
     return model.pigeonControllers[pigeon]!!
 }
 
@@ -431,4 +480,19 @@ fun getRunningRobotState() : RunningRobotState {
 
 
     return state
+}
+
+class MotorRegistry private constructor(
+    private val backing: Map<MotorToken<*>, Any>
+) {
+    constructor() : this(emptyMap())
+
+    @Suppress("UNCHECKED_CAST")
+    fun <C : Any> get(token: MotorToken<C>): C =
+        backing[token] as C
+
+    fun <C : Any> plus(token: MotorToken<C>, controller: C): MotorRegistry =
+        MotorRegistry(backing + (token to controller))
+
+    fun contains(token: MotorToken<*>) = token in backing
 }

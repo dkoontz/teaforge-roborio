@@ -1,6 +1,7 @@
 package teaforge.platform.RoboRio
 
 import com.ctre.phoenix6.hardware.TalonFX
+import com.revrobotics.spark.SparkMax
 import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
@@ -38,7 +39,16 @@ sealed interface Effect<out TMessage> {
     data class SetPwmMotorSpeed<TMessage>(val pwmSlot: PwmPort, val value: Double) :
         Effect<TMessage>
 
-    data class SetCanMotorSpeed(val motor: MotorToken, val value: Double) : Effect<Nothing>
+    data class InitMotor<TMessage>(
+        val type: MotorType,
+        val id: Int,
+        val message: (InitMotor<TMessage>, Result<MotorToken<*>, Error>) -> TMessage
+    ) : Effect<TMessage>
+
+    data class SetCanMotorSpeed(
+        val motor: MotorToken<*>,
+        val value: Double
+    ) : Effect<Nothing>
 
     data class ReadFile<TMessage>(
         val path: String,
@@ -170,8 +180,13 @@ enum class DioPortState {
 }*/
 
 sealed interface MotorToken<TMotor : Any> {
-    data class NeoMotorToken internal constructor(val id: Int) : MotorToken<>
+    data class NeoMotorToken internal constructor(val id: Int) : MotorToken<SparkMax>
     data class TalonMotorToken internal constructor(val id: Int) : MotorToken<TalonFX>
+}
+
+enum class MotorType {
+    Neo,
+    Talon
 }
 
 enum class Encoder(val id: Int) {
@@ -206,6 +221,7 @@ sealed class Error {
     data object SongNotLoaded : Error()
     data object SongNotPlaying : Error()
     data class PhoenixError(val details: String) : Error()
+    data class RevError(val details: String) : Error()
 
     // TODO: Add pre-defined default error messages for each error
     fun name(): String = this::class.simpleName ?: ""
