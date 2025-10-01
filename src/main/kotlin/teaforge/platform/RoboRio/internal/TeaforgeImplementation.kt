@@ -32,11 +32,11 @@ data class RoboRioModel<TMessage, TModel>(
     val dioInputs: Map<DioPort, DigitalInput>,
     val dioOutputs: Map<DioPort, DigitalOutput>,
     val analogInputs: AnalogPorts,
-    val talonFXControllers: Map<Motor, TalonFX>,
+    val motorControllers: Map<MotorToken, Motor>,
     val pigeonControllers: Map<Pigeon, Pigeon2>,
     val encoderControllers: Map<Encoder, CANcoder>,
-    val loadedOrchestras: Map<Motor, Orchestra>,
-    val currentlyPlaying: Map<Motor, Orchestra>,
+    val loadedOrchestras: Map<MotorToken.TalonMotorToken, Orchestra>,
+    val currentlyPlaying: Map<MotorToken.TalonMotorToken, Orchestra>,
 )
 
 fun <TMessage, TModel> createRoboRioRunner(

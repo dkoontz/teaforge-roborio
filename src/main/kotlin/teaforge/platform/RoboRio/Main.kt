@@ -1,5 +1,6 @@
 package teaforge.platform.RoboRio
 
+import com.ctre.phoenix6.hardware.TalonFX
 import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
@@ -19,25 +20,25 @@ sealed interface Effect<out TMessage> {
     data class Log(val msg: String) : Effect<Nothing>
 
     data class LoadSong<TMessage>(
-        val motor: Motor,
+        val motor: MotorToken.TalonMotorToken,
         val songData: ByteArray,
-        val message: (Motor, Maybe<Error>) -> TMessage
+        val message: (MotorToken.TalonMotorToken, Maybe<Error>) -> TMessage
     ) : Effect<TMessage>
 
     data class PlaySong<TMessage>(
-        val motor: Motor,
-        val message: (Motor, Maybe<Error>) -> TMessage
+        val motor: MotorToken.TalonMotorToken,
+        val message: (MotorToken.TalonMotorToken, Maybe<Error>) -> TMessage
     ) : Effect<TMessage>
 
     data class StopSong<TMessage>(
-        val motor: Motor,
-        val message: (Motor, Maybe<Error>) -> TMessage
+        val motor: MotorToken.TalonMotorToken,
+        val message: (MotorToken.TalonMotorToken, Maybe<Error>) -> TMessage
     ) : Effect<TMessage>
 
     data class SetPwmMotorSpeed<TMessage>(val pwmSlot: PwmPort, val value: Double) :
         Effect<TMessage>
 
-    data class SetCanMotorSpeed(val motor: Motor, val value: Double) : Effect<Nothing>
+    data class SetCanMotorSpeed(val motor: MotorToken, val value: Double) : Effect<Nothing>
 
     data class ReadFile<TMessage>(
         val path: String,
@@ -157,7 +158,7 @@ enum class DioPortState {
     LOW
 }
 
-enum class Motor(val id: Int) {
+/*enum class Motor(val id: Int) {
     FrontLeftDrive(4),
     FrontLeftSteer(1),
     FrontRightDrive(6),
@@ -166,6 +167,11 @@ enum class Motor(val id: Int) {
     BackLeftSteer(0),
     BackRightDrive(2),
     BackRightSteer(3)
+}*/
+
+sealed interface MotorToken<TMotor : Any> {
+    data class NeoMotorToken internal constructor(val id: Int) : MotorToken<>
+    data class TalonMotorToken internal constructor(val id: Int) : MotorToken<TalonFX>
 }
 
 enum class Encoder(val id: Int) {
