@@ -170,17 +170,6 @@ enum class DioPortState {
     LOW
 }
 
-/*enum class Motor(val id: Int) {
-    FrontLeftDrive(4),
-    FrontLeftSteer(1),
-    FrontRightDrive(6),
-    FrontRightSteer(5),
-    BackLeftDrive(7),
-    BackLeftSteer(0),
-    BackRightDrive(2),
-    BackRightSteer(3)
-}*/
-
 sealed interface CanDeviceToken<TDevice : Any> {
     sealed interface MotorToken<TMotor : Any> : CanDeviceToken<TMotor> {
         data class NeoMotorToken internal constructor(val id: Int) : MotorToken<SparkMax>
@@ -196,17 +185,6 @@ enum class CanDeviceType {
     Encoder,
     Pigeon
 }
-
-/*enum class Encoder(val id: Int) {
-    FrontLeft(9),
-    FrontRight(10),
-    BackLeft(11),
-    BackRight(8)
-}
-
-enum class Pigeon(val id: Int) {
-    CentralPigeon(12)
-}*/
 
 sealed interface GamepadButtonState {
     object Pressed : GamepadButtonState
