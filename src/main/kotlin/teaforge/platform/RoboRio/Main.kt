@@ -1,73 +1,104 @@
 package teaforge.platform.RoboRio
 
-import com.ctre.phoenix6.hardware.CANcoder
-import com.ctre.phoenix6.hardware.Pigeon2
-import com.ctre.phoenix6.hardware.TalonFX
-import com.revrobotics.spark.SparkMax
 import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
-import teaforge.utils.Maybe
 import teaforge.utils.Result
-import java.util.*
 
-fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase {
-    return TimedRobotBasedPlatform<TMessage, TModel>(program)
-}
+fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase =
+    TimedRobotBasedPlatform<TMessage, TModel>(program)
 
 typealias RoboRioProgram<TMessage, TModel> =
-        ProgramConfig<Effect<TMessage>, TMessage, TModel, Subscription<TMessage>>
+    ProgramConfig<Effect<TMessage>, TMessage, TModel, Subscription<TMessage>>
 
 sealed interface Effect<out TMessage> {
-    data class Log(val msg: String) : Effect<Nothing>
+    data class Log(
+        val msg: String,
+    ) : Effect<Nothing>
 
-    data class LoadSong<TMessage>(
-        val motor: CanDeviceToken.MotorToken.TalonMotorToken,
-        val songData: ByteArray,
-        val message: (CanDeviceToken.MotorToken.TalonMotorToken, Maybe<Error>) -> TMessage
+    data class InitDigitalPortForInput<TMessage>(
+        val port: DioPort,
+        val message: (Result<DigitalInputToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
-    data class PlaySong<TMessage>(
-        val motor: CanDeviceToken.MotorToken.TalonMotorToken,
-        val message: (CanDeviceToken.MotorToken.TalonMotorToken, Maybe<Error>) -> TMessage
+    data class InitDigitalPortForOutput<TMessage>(
+        val port: DioPort,
+        val initialValue: DioPortState,
+        val message: (Result<DigitalOutputToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
-    data class StopSong<TMessage>(
-        val motor: CanDeviceToken.MotorToken.TalonMotorToken,
-        val message: (CanDeviceToken.MotorToken.TalonMotorToken, Maybe<Error>) -> TMessage
+    data class InitAnalogPortForInput<TMessage>(
+        val port: AnalogPort,
+        val message: (Result<AnalogInputToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
-    data class SetPwmMotorSpeed<TMessage>(val pwmSlot: PwmPort, val value: Double) :
-        Effect<TMessage>
+    data class InitAnalogPortForOutput<TMessage>(
+        val port: AnalogPort,
+        val initialVoltage: Double,
+        val message: (Result<AnalogOutputToken, Error>) -> TMessage,
+    ) : Effect<TMessage>
+
+    data class SetDigitalPortState<TMessage>(
+        val token: DigitalOutputToken,
+        val value: DioPortState,
+        val message: (Result<DioPort, Error>) -> TMessage,
+    ) : Effect<TMessage>
+
+    data class SetAnalogPortVoltage<TMessage>(
+        val token: AnalogOutputToken,
+        val voltage: Double,
+        val message: (Result<AnalogPort, Error>) -> TMessage,
+    ) : Effect<TMessage>
+
+    data class InitPwmPortForOutput<TMessage>(
+        val port: PwmPort,
+        val initialSpeed: Double,
+        val message: (Result<PwmOutputToken, Error>) -> TMessage,
+    ) : Effect<TMessage>
+
+    data class SetPwmValue<TMessage>(
+        val token: PwmOutputToken,
+        val value: Double,
+        val message: (Result<PwmPort, Error>) -> TMessage,
+    ) : Effect<TMessage>
+
+    data class InitHidPortForInput<TMessage>(
+        val port: Int,
+        val message: (Result<HidInputToken, Error>) -> TMessage,
+    ) : Effect<TMessage>
 
     data class InitCanDevice<TMessage>(
         val type: CanDeviceType,
         val id: Int,
-        val message: (InitCanDevice<TMessage>, Result<CanDeviceToken<*>, Error>) -> TMessage
+        val message: (CanDeviceType, Int, Result<CanDeviceToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
     data class SetCanMotorSpeed(
-        val motor: CanDeviceToken.MotorToken<*>,
-        val value: Double
+        val motor: CanDeviceToken.MotorToken,
+        val value: Double,
     ) : Effect<Nothing>
 
     data class ReadFile<TMessage>(
         val path: String,
-        val message: (Result<ByteArray, Error>) -> TMessage
+        val message: (Result<ByteArray, Error>) -> TMessage,
     ) : Effect<TMessage>
 
-    data class SetDioPort<TMessage>(
-        val port: DioPort,
-        val value: DioPortState,
-        val message: (Result<DioPort, Error>) -> TMessage
+    data class LoadSong<TMessage>(
+        val motor: CanDeviceToken.MotorToken.TalonMotorToken,
+        val songData: ByteArray,
+        val message: (Result<OrchestraToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
+    data class PlaySong<TMessage>(
+        val token: OrchestraToken,
+        val message: (Result<Unit, Error>) -> TMessage,
+    ) : Effect<TMessage>
 
-    // all the other effects go here
-    //   - send message over CANbus
-    //   - send message over I2C
-    //   - turn a DIO pin on/off
+    data class StopSong<TMessage>(
+        val token: OrchestraToken,
+        val message: (Result<Unit, Error>) -> TMessage,
+    ) : Effect<TMessage>
 }
 
 sealed interface Subscription<out TMessage> {
@@ -76,23 +107,38 @@ sealed interface Subscription<out TMessage> {
         val message: (Long) -> TMessage,
     ) : Subscription<TMessage>
 
-    data class DioPortValue<TMessage>(
-        val port: DioPort,
+    data class DigitalPortValue<TMessage>(
+        val token: DigitalInputToken,
         val millisecondsBetweenReads: Int,
-        val onInit: (Result<DioPort, Error>) -> TMessage,
-        val onRead: (DioPortStatus) -> TMessage,
+        val message: (DioPortState) -> TMessage,
     ) : Subscription<TMessage>
 
-    data class AnalogInputValue<TMessage>(
-        val port: AnalogPort,
+    data class DigitalPortValueChanged<TMessage>(
+        val token: DigitalInputToken,
+        val message: (DioPortState, DioPortState) -> TMessage,
+    ) : Subscription<TMessage>
+
+    data class AnalogPortValue<TMessage>(
+        val token: AnalogInputToken,
         val millisecondsBetweenReads: Int,
         val useAverageValue: Boolean,
         val message: (Double) -> TMessage,
     ) : Subscription<TMessage>
 
+    data class AnalogPortValueChanged<TMessage>(
+        val token: AnalogInputToken,
+        val useAverageValue: Boolean,
+        val message: (Double, Double) -> TMessage,
+    ) : Subscription<TMessage>
+
     data class HidPortValue<TMessage>(
-        val port: Int,
+        val token: HidInputToken,
         val message: (HidValue) -> TMessage,
+    ) : Subscription<TMessage>
+
+    data class HidPortValueChanged<TMessage>(
+        val token: HidInputToken,
+        val message: (HidValue, HidValue) -> TMessage,
     ) : Subscription<TMessage>
 
     data class RobotState<TMessage>(
@@ -104,111 +150,14 @@ sealed interface Subscription<out TMessage> {
     ) : Subscription<TMessage>
 
     data class CANcoderValue<TMessage>(
-        val encoder: CanDeviceToken.EncoderToken,
+        val token: CanDeviceToken.EncoderToken,
         val millisecondsBetweenReads: Int,
-        val message: (CanDeviceToken.EncoderToken, Double) -> TMessage
+        val message: (Double) -> TMessage,
     ) : Subscription<TMessage>
 
     data class PigeonValue<TMessage>(
         val pigeon: CanDeviceToken.PigeonToken,
         val millisecondsBetweenReads: Int,
-        val message: (CanDeviceToken.PigeonToken, Rotation3d) -> TMessage
+        val message: (Rotation3d) -> TMessage,
     ) : Subscription<TMessage>
-
-
-
-
-}
-
-data class HidValue(
-    val axisCount: Int,
-    val buttonCount: Int,
-    val axisValues: Array<Double>,
-    val buttonValues: Array<Boolean>,
-)
-
-enum class PwmPort {
-    Zero,
-    One,
-    Two,
-    Three,
-    Four,
-    Five,
-    Six,
-    Seven,
-    Eight,
-    Nine,
-}
-
-enum class DioPort(val id: Int) {
-    Zero(0),
-    One(1),
-    Two(2),
-    Three(3),
-    Four(4),
-    Five(5),
-    Six(6),
-    Seven(7),
-    Eight(8),
-    Nine(9),
-}
-
-enum class AnalogPort {
-    Zero,
-    One,
-    Two,
-    Three,
-}
-
-enum class DioPortStatus {
-    Open,
-    Closed,
-}
-
-enum class DioPortState {
-    HIGH,
-    LOW
-}
-
-sealed interface CanDeviceToken<TDevice : Any> {
-    sealed interface MotorToken<TMotor : Any> : CanDeviceToken<TMotor> {
-        data class NeoMotorToken internal constructor(val id: Int) : MotorToken<SparkMax>
-        data class TalonMotorToken internal constructor(val id: Int) : MotorToken<TalonFX>
-    }
-    data class EncoderToken internal constructor(val id: Int) : CanDeviceToken<CANcoder>
-    data class PigeonToken internal constructor(val id: Int) : CanDeviceToken<Pigeon2>
-}
-
-enum class CanDeviceType {
-    Neo,
-    Talon,
-    Encoder,
-    Pigeon
-}
-
-sealed interface GamepadButtonState {
-    object Pressed : GamepadButtonState
-    object Released : GamepadButtonState
-}
-
-enum class RunningRobotState {
-    Disabled,
-    Teleop,
-    Autonomous,
-    Test,
-    EStopped,
-    Unknown
-}
-
-sealed class Error {
-    data class InvalidFilename(val path: String) : Error()
-    data object ReadOnlyFileSystem : Error()
-    data object AlreadyInitialized : Error()
-    data object SongNotLoaded : Error()
-    data object SongNotPlaying : Error()
-    data class PhoenixError(val details: String) : Error()
-    data class RevError(val details: String) : Error()
-
-    // TODO: Add pre-defined default error messages for each error
-    fun name(): String = this::class.simpleName ?: ""
 }
