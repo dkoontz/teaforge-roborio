@@ -4,6 +4,7 @@ import com.ctre.phoenix6.hardware.CANcoder
 import com.ctre.phoenix6.hardware.Pigeon2
 import com.ctre.phoenix6.hardware.TalonFX
 import com.revrobotics.spark.SparkMax
+import edu.wpi.first.hal.CANAPITypes.CANDeviceType
 import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
@@ -42,9 +43,9 @@ sealed interface Effect<out TMessage> {
         Effect<TMessage>
 
     data class InitCanDevice<TMessage>(
-        val type: CanDeviceType,
         val id: Int,
-        val message: (InitCanDevice<TMessage>, Result<CanDeviceToken<*>, Error>) -> TMessage
+        val type: CanDeviceType,
+        val message: (Int, Result<CanDeviceToken<*>, Error>) -> TMessage
     ) : Effect<TMessage>
 
     data class SetCanMotorSpeed(
@@ -170,20 +171,37 @@ enum class DioPortState {
     LOW
 }
 
-sealed interface CanDeviceToken<TDevice : Any> {
-    sealed interface MotorToken<TMotor : Any> : CanDeviceToken<TMotor> {
-        data class NeoMotorToken internal constructor(val id: Int) : MotorToken<SparkMax>
-        data class TalonMotorToken internal constructor(val id: Int) : MotorToken<TalonFX>
+sealed interface CanDeviceToken<TDevice : CanDeviceType> {
+    val id: Int
+    val device: Any
+    sealed interface MotorToken<TMotor : CanDeviceType.Motor> : CanDeviceToken<TMotor> {
+        data class NeoMotorToken internal constructor(
+            override val id: Int,
+            override val device: SparkMax
+        ) : MotorToken<CanDeviceType.Motor.Neo>
+
+        data class TalonMotorToken internal constructor(
+            override val id: Int,
+            override val device: TalonFX
+        ) : MotorToken<CanDeviceType.Motor.Talon>
     }
-    data class EncoderToken internal constructor(val id: Int) : CanDeviceToken<CANcoder>
-    data class PigeonToken internal constructor(val id: Int) : CanDeviceToken<Pigeon2>
+    data class EncoderToken internal constructor(
+        override val id: Int,
+        override val device: CANcoder
+    ) : CanDeviceToken<CanDeviceType.Encoder>
+    data class PigeonToken internal constructor(
+        override val id: Int,
+        override val device: Pigeon2
+    ) : CanDeviceToken<CanDeviceType.Pigeon>
 }
 
-enum class CanDeviceType {
-    Neo,
-    Talon,
-    Encoder,
-    Pigeon
+sealed interface CanDeviceType {
+    sealed interface Motor : CanDeviceType {
+        data object Neo : Motor
+        data object Talon : Motor
+    }
+    data object Encoder : CanDeviceType
+    data object Pigeon : CanDeviceType
 }
 
 sealed interface GamepadButtonState {

@@ -331,7 +331,7 @@ fun <TMessage, TModel> runReadCANcoder(
         val currentMicroseconds = HALUtil.getFPGATime()
         val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
         return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
-                val cancoder = getCanDevice(state.config.encoder, model)
+                val cancoder = state.config.encoder.device
                 val newValue = cancoder.absolutePosition.valueAsDouble
                 val normalized = newValue * 360
 
@@ -353,7 +353,7 @@ fun <TMessage, TModel> runReadPigeon(
         val currentMicroseconds = HALUtil.getFPGATime()
         val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
         return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
-                val pigeon = getCanDevice(state.config.pigeon, model)
+                val pigeon = state.config.pigeon.device
                 pigeon.rotation3d?.let { newValue ->
                         val updatedState =
                                 state.copy(

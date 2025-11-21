@@ -35,7 +35,7 @@ data class RoboRioModel<TMessage, TModel>(
     val dioInputs: Map<DioPort, DigitalInput>,
     val dioOutputs: Map<DioPort, DigitalOutput>,
     val analogInputs: AnalogPorts,
-    val canControllers: CanRegistry,
+    val canDevices: Set<CanDeviceToken<*>>,
     val loadedOrchestras: Map<CanDeviceToken.MotorToken.TalonMotorToken, Orchestra>,
     val currentlyPlaying: Map<CanDeviceToken.MotorToken.TalonMotorToken, Orchestra>,
 )
@@ -173,7 +173,7 @@ fun <TMessage, TModel> initRoboRioRunner(args: List<String>): RoboRioModel<TMess
             three = createAnalogPortEntry(AnalogPort.Three),
         )
 
-    val canControllers = CanRegistry()
+    val canControllers = emptySet<CanDeviceToken<*>>()
 
     return RoboRioModel(
         messageHistory = emptyList(),
@@ -181,7 +181,7 @@ fun <TMessage, TModel> initRoboRioRunner(args: List<String>): RoboRioModel<TMess
         dioInputs = dioInputs,
         dioOutputs = dioOutputs,
         analogInputs = analogInputs,
-        canControllers = canControllers,
+        canDevices = canControllers,
         loadedOrchestras = emptyMap(),
         currentlyPlaying = emptyMap()
     )
@@ -212,7 +212,7 @@ fun <TMessage, TModel> processEffect(
                 model to Maybe.Some(effect.message(effect.motor, error))
             }
 
-            val motor: TalonFX = getCanDevice(effect.motor, model)
+            val motor: TalonFX = effect.motor.device
             val orchestra = Orchestra(listOf(motor), musicFile.absolutePath)
 
             val loadedOrcs = model.loadedOrchestras.plus(effect.motor to orchestra)
@@ -258,8 +258,8 @@ fun <TMessage, TModel> processEffect(
 
         is Effect.SetCanMotorSpeed -> {
             when (effect.motor) {
-                is CanDeviceToken.MotorToken.TalonMotorToken -> getCanDevice(effect.motor, model).set(effect.value)
-                is CanDeviceToken.MotorToken.NeoMotorToken -> getCanDevice(effect.motor, model).set(effect.value)
+                is CanDeviceToken.MotorToken.TalonMotorToken -> effect.motor.device.set(effect.value)
+                is CanDeviceToken.MotorToken.NeoMotorToken -> effect.motor.device.set(effect.value)
             }
             return model to Maybe.None
         }
@@ -306,34 +306,34 @@ fun <TMessage, TModel> processEffect(
 
         is Effect.InitCanDevice -> {
             // Local helpers keep success/error boilerplate out of the branches.
-            fun <C : Any> success(token: CanDeviceToken<C>, controller: C): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
-                val result = Result.Success<CanDeviceToken<*>, Error>(token)
-                val newModel = model.copy(canControllers = model.canControllers.plus(token, controller))
-                val msg = effect.message(effect, result)
+            fun <C : CanDeviceType> success(token: CanDeviceToken<C>): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
+                val result = Result.Success<CanDeviceToken<C>, Error>(token)
+                val newModel = model.copy(canDevices = model.canDevices.plus(token))
+                val msg = effect.message(effect.id, result)
                 return newModel to Maybe.Some(msg)
             }
 
             fun failure(error: Error): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
                 val result = Result.Error<CanDeviceToken<*>, Error>(error)
-                return model to Maybe.Some(effect.message(effect, result))
+                return model to Maybe.Some(effect.message(effect.id, result))
             }
 
             when (effect.type) {
-                CanDeviceType.Neo -> {
+                CanDeviceType.Motor.Neo -> {
                     val motor = SparkMax(effect.id, SparkLowLevel.MotorType.kBrushless)
                     val connected = motor.lastError == REVLibError.kOk && !motor.firmwareString.isNullOrEmpty()
                     if (connected) {
-                        success(CanDeviceToken.MotorToken.NeoMotorToken(effect.id), motor)
+                        success(CanDeviceToken.MotorToken.NeoMotorToken(effect.id, motor))
                     } else {
                         failure(Error.RevError(motor.lastError.name))
                     }
                 }
 
-                CanDeviceType.Talon -> {
+                CanDeviceType.Motor.Talon -> {
                     val motor = TalonFX(effect.id)
                     val status = motor.deviceTemp.refresh().status
                     if (status.isOK) {
-                        success(CanDeviceToken.MotorToken.TalonMotorToken(effect.id), motor)
+                        success(CanDeviceToken.MotorToken.TalonMotorToken(effect.id, motor))
                     } else {
                         failure(Error.PhoenixError(status.name))
                     }
@@ -343,7 +343,7 @@ fun <TMessage, TModel> processEffect(
                     val encoder = CANcoder(effect.id)
                     val status = encoder.supplyVoltage.status
                     if (status.isOK) {
-                        success(CanDeviceToken.EncoderToken(effect.id), encoder)
+                        success(CanDeviceToken.EncoderToken(effect.id, encoder))
                     } else {
                         failure(Error.PhoenixError(status.name))
                     }
@@ -353,7 +353,7 @@ fun <TMessage, TModel> processEffect(
                     val pigeon = Pigeon2(effect.id)
                     val status = pigeon.supplyVoltage.status
                     if (status.isOK) {
-                        success(CanDeviceToken.PigeonToken(effect.id), pigeon)
+                        success(CanDeviceToken.PigeonToken(effect.id, pigeon))
                     } else {
                         failure(Error.PhoenixError(status.name))
                     }
@@ -465,11 +465,6 @@ internal fun <TMessage, TModel> getPwmPort(port: PwmPort, model: RoboRioModel<TM
     }
 }
 
-internal fun <TMessage, TModel, TDevice : Any> getCanDevice(
-    device: CanDeviceToken<TDevice>,
-    model: RoboRioModel<TMessage, TModel>
-) : TDevice = model.canControllers.get(device)
-
 internal fun getRunningRobotState() : RunningRobotState {
     val state: RunningRobotState =
         if (RobotState.isDisabled()) { RunningRobotState.Disabled }
@@ -481,19 +476,4 @@ internal fun getRunningRobotState() : RunningRobotState {
 
 
     return state
-}
-
-class CanRegistry private constructor(
-    private val backing: Map<CanDeviceToken<*>, Any>
-) {
-    constructor() : this(emptyMap())
-
-    @Suppress("UNCHECKED_CAST")
-    fun <C : Any> get(token: CanDeviceToken<C>): C =
-        backing[token] as C
-
-    fun <C : Any> plus(token: CanDeviceToken<C>, controller: C): CanRegistry =
-        CanRegistry(backing + (token to controller))
-
-    fun contains(token: CanDeviceToken<*>) = token in backing
 }
