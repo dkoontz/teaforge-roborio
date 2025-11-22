@@ -7,11 +7,14 @@ plugins {
 
 project.group = "io.github.dkoontz"
 
-project.version = "0.1.3"
+project.version = "0.1.4"
 
 repositories {
     mavenCentral()
     flatDir { dirs("libs") }
+
+    maven { url = uri("https://maven.ctr-electronics.com/release/") }
+    maven { url = uri("https://maven.revrobotics.com/") }
 }
 
 dependencies {
@@ -22,6 +25,12 @@ dependencies {
     implementation("edu.wpi.first.wpilibj:wpilibj-java:2025.3.2")
     implementation("edu.wpi.first.wpiutil:wpiutil-java:2025.3.2")
     implementation("edu.wpi.first.hal:hal-java:2025.3.2")
+    implementation("edu.wpi.first.wpimath:wpimath-java:2025.3.2")
+
+    implementation("com.ctre.phoenix6:wpiapi-java:25.3.2")
+    implementation("com.ctre.phoenix:api-java:5.35.0")
+    implementation("com.ctre.phoenix:wpiapi-java:5.35.0")
+    implementation("com.revrobotics.frc:REVLib-java:2025.0.3")
 
     testImplementation(kotlin("test"))
 }
