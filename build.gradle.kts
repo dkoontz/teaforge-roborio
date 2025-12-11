@@ -32,6 +32,10 @@ dependencies {
     implementation("com.ctre.phoenix:wpiapi-java:5.35.0")
     implementation("com.revrobotics.frc:REVLib-java:2025.0.3")
 
+    implementation("io.ktor:ktor-client-core:2.3.7")
+    implementation("io.ktor:ktor-client-websockets:2.3.7")
+    implementation("io.ktor:ktor-client-cio:2.3.7")
+
     testImplementation(kotlin("test"))
 }
 
