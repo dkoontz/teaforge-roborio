@@ -291,7 +291,7 @@ fun <TMessage, TModel> processEffect(
                 val orchestra = Orchestra(listOf(motor))
 
                 // Write song data to a temporary file
-                val tempFile = java.io.File.createTempFile("orchestra_", ".chrp")
+                val tempFile = File.createTempFile("orchestra_", ".chrp")
                 tempFile.writeBytes(effect.songData)
                 tempFile.deleteOnExit()
 
