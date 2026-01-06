@@ -22,6 +22,7 @@ import teaforge.platform.RoboRio.*
 import teaforge.platform.RoboRio.DigitalInputToken
 import teaforge.utils.Maybe
 import teaforge.utils.Result
+import teaforge.utils.unwrap
 import java.io.File
 import java.io.IOException
 import java.nio.file.*
@@ -464,57 +465,56 @@ fun <TMessage, TModel> processEffect(
                 return model to Maybe.Some(effect.message(effect.id, result))
             }
 
-            // We should be able to assume there will always be an item in this list.
             fun <TToken: CanDeviceToken> cast(
                 effect: Effect.InitCanDevice<TMessage, *>
-            ) : Effect.InitCanDevice<TMessage, TToken> =
-                listOf(effect).filterIsInstance<Effect.InitCanDevice<TMessage, TToken>>()[0]
+            ) : Maybe<Effect.InitCanDevice<TMessage, TToken>> =
+                listOf(effect).filterIsInstance<Effect.InitCanDevice<TMessage, TToken>>().firstOrNull()?.let { Maybe.Some(it) } ?: Maybe.None
 
-            when (effect.type) {
-                CanDeviceType.Motor.Neo -> {
-                    val castedEffect: Effect.InitCanDevice<TMessage, CanDeviceToken.MotorToken.NeoMotorToken> = cast(effect)
-                    val motor = SparkMax(castedEffect.id, SparkLowLevel.MotorType.kBrushless)
+            cast<CanDeviceToken.MotorToken.NeoMotorToken>(effect).unwrap(
+                default = cast<CanDeviceToken.MotorToken.TalonMotorToken>(effect).unwrap(
+                    default = cast<CanDeviceToken.EncoderToken>(effect).unwrap(
+                        default = cast<CanDeviceToken.PigeonToken>(effect).unwrap(
+                            default = model to Maybe.None,
+                            fn = {
+                                val pigeon = Pigeon2(effect.id)
+                                val status = pigeon.supplyVoltage.status
+                                if (status.isOK) {
+                                    success(it, CanDeviceToken.PigeonToken(effect.id, pigeon))
+                                } else {
+                                    failure(it, Error.PhoenixError(effect.id, status))
+                                }
+                            }
+                        ),
+                        fn = {
+                            val encoder = CANcoder(effect.id)
+                            val status = encoder.supplyVoltage.status
+                            if (status.isOK) {
+                                success(it, CanDeviceToken.EncoderToken(effect.id, encoder))
+                            } else {
+                                failure(it, Error.PhoenixError(effect.id, status))
+                            }
+                        }
+                    ),
+                    fn = {
+                        val motor = TalonFX(effect.id)
+                        val status = motor.deviceTemp.waitForUpdate(CANBUS_INIT_TIMEOUT_SECONDS).status
+                        if (status.isOK) {
+                            success(it, CanDeviceToken.MotorToken.TalonMotorToken(effect.id, motor))
+                        } else {
+                            failure(it, Error.PhoenixError(effect.id, status))
+                        }
+                    }
+                ),
+                fn = {
+                    val motor = SparkMax(it.id, SparkLowLevel.MotorType.kBrushless)
                     val connected = motor.lastError == REVLibError.kOk && !motor.firmwareString.isNullOrEmpty()
                     if (connected) {
-                        success(castedEffect, CanDeviceToken.MotorToken.NeoMotorToken(castedEffect.id, motor))
+                        success(it, CanDeviceToken.MotorToken.NeoMotorToken(it.id, motor))
                     } else {
-                        failure(castedEffect, Error.RevError(castedEffect.id, motor.lastError))
+                        failure(it, Error.RevError(it.id, motor.lastError))
                     }
                 }
-
-                CanDeviceType.Motor.Talon -> {
-                    val castedEffect: Effect.InitCanDevice<TMessage, CanDeviceToken.MotorToken.TalonMotorToken> = cast(effect)
-                    val motor = TalonFX(effect.id)
-                    val status = motor.deviceTemp.waitForUpdate(CANBUS_INIT_TIMEOUT_SECONDS).status
-                    if (status.isOK) {
-                        success(castedEffect, CanDeviceToken.MotorToken.TalonMotorToken(effect.id, motor))
-                    } else {
-                        failure(castedEffect, Error.PhoenixError(effect.id, status))
-                    }
-                }
-
-                CanDeviceType.Encoder -> {
-                    val castedEffect: Effect.InitCanDevice<TMessage, CanDeviceToken.EncoderToken> = cast(effect)
-                    val encoder = CANcoder(effect.id)
-                    val status = encoder.supplyVoltage.status
-                    if (status.isOK) {
-                        success(castedEffect, CanDeviceToken.EncoderToken(effect.id, encoder))
-                    } else {
-                        failure(castedEffect, Error.PhoenixError(effect.id, status))
-                    }
-                }
-
-                CanDeviceType.Pigeon -> {
-                    val castedEffect: Effect.InitCanDevice<TMessage, CanDeviceToken.PigeonToken> = cast(effect)
-                    val pigeon = Pigeon2(effect.id)
-                    val status = pigeon.supplyVoltage.status
-                    if (status.isOK) {
-                        success(castedEffect, CanDeviceToken.PigeonToken(effect.id, pigeon))
-                    } else {
-                        failure(castedEffect, Error.PhoenixError(effect.id, status))
-                    }
-                }
-            }
+            )
         }
     }
 }
