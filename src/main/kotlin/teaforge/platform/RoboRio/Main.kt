@@ -70,10 +70,10 @@ sealed interface Effect<out TMessage> {
         val message: (Result<HidInputToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
-    data class InitCanDevice<TMessage>(
-        val type: CanDeviceType,
+    data class InitCanDevice<TMessage, TToken: CanDeviceToken>(
+        val type: CanDeviceType<TToken>,
         val id: Int,
-        val message: (CanDeviceType, Int, Result<CanDeviceToken, Error>) -> TMessage,
+        val message: (Int, Result<TToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
     data class SetCanMotorSpeed(
@@ -111,7 +111,7 @@ sealed interface Subscription<out TMessage> {
 
     data class WebSocket<TMessage>(
         val url: String,
-        val message: (Maybe<String>) -> TMessage
+        val message: (String) -> TMessage
     ) : Subscription<TMessage>
 
     data class DigitalPortValue<TMessage>(

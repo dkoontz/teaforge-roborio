@@ -178,11 +178,13 @@ sealed interface CanDeviceToken {
     ) : CanDeviceToken
 }
 
-enum class CanDeviceType {
-    Neo,
-    Talon,
-    Encoder,
-    Pigeon,
+sealed interface CanDeviceType<TToken: CanDeviceToken> {
+    sealed interface Motor<TToken: CanDeviceToken.MotorToken> {
+        data object Neo: Motor<CanDeviceToken.MotorToken.NeoMotorToken>
+        data object Talon: Motor<CanDeviceToken.MotorToken.TalonMotorToken>
+    }
+    data object Encoder: CanDeviceType<CanDeviceToken.EncoderToken>
+    data object Pigeon: CanDeviceType<CanDeviceToken.PigeonToken>
 }
 
 sealed interface GamepadButtonState {

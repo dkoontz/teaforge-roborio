@@ -13,6 +13,8 @@ import teaforge.platform.RoboRio.HidValue
 import teaforge.platform.RoboRio.RunningRobotState
 import teaforge.platform.RoboRio.Subscription
 import teaforge.utils.Maybe
+import teaforge.utils.map
+import teaforge.utils.unwrap
 
 sealed interface SubscriptionState<TMessage> {
     data class Interval<TMessage>(
@@ -480,11 +482,9 @@ fun <TMessage, TModel> runReadWebSocket(
         (frame as? Frame.Text)?.let{ Maybe.Some(it.readText()) } ?: Maybe.None
     } ?: Maybe.None
 
-    return Triple(
-        model,
-        state,
-        Maybe.Some(state.config.message(read))
-    )
+    val message: Maybe<TMessage> = read.map { state.config.message(it) }
+
+    return Triple(model, state, message)
 }
 
 fun <TMessage, TModel> runReadDigitalPortChanged(

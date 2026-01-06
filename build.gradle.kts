@@ -1,7 +1,7 @@
 plugins {
     kotlin("jvm") version "1.9.0"
     id("maven-publish")
-    id("edu.wpi.first.GradleRIO") version "2025.3.2"
+    id("edu.wpi.first.GradleRIO") version "2026.1.1-beta-1"
     id("com.github.breadmoirai.github-release") version "2.5.2"
 }
 
@@ -22,14 +22,14 @@ dependencies {
 
     api(files("libs/teaforge-0.1.3.jar"))
 
-    implementation("edu.wpi.first.wpilibj:wpilibj-java:2025.3.2")
-    implementation("edu.wpi.first.wpiutil:wpiutil-java:2025.3.2")
-    implementation("edu.wpi.first.hal:hal-java:2025.3.2")
-    implementation("edu.wpi.first.wpimath:wpimath-java:2025.3.2")
+    implementation("edu.wpi.first.wpilibj:wpilibj-java:2026.1.1-beta-1")
+    implementation("edu.wpi.first.wpiutil:wpiutil-java:2026.1.1-beta-1")
+    implementation("edu.wpi.first.hal:hal-java:2026.1.1-beta-1")
+    implementation("edu.wpi.first.wpimath:wpimath-java:2026.1.1-beta-1")
 
-    implementation("com.ctre.phoenix6:wpiapi-java:25.3.2")
-    implementation("com.ctre.phoenix:api-java:5.35.0")
-    implementation("com.ctre.phoenix:wpiapi-java:5.35.0")
+    implementation("com.ctre.phoenix6:wpiapi-java:25.4.0")
+    implementation("com.ctre.phoenix:api-java:5.35.1")
+    implementation("com.ctre.phoenix:wpiapi-java:5.35.1")
     implementation("com.revrobotics.frc:REVLib-java:2025.0.3")
 
     implementation("io.ktor:ktor-client-core:2.3.7")
