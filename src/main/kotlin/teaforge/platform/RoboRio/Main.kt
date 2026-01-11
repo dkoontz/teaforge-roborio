@@ -71,6 +71,7 @@ sealed interface Effect<out TMessage> {
     ) : Effect<TMessage>
 
     data class InitCanDevice<TMessage, TToken: CanDeviceToken>(
+        val type: CanDeviceType<TToken>,
         val id: Int,
         val message: (Int, Result<TToken, Error>) -> TMessage,
     ) : Effect<TMessage>

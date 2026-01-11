@@ -178,6 +178,15 @@ sealed interface CanDeviceToken {
     ) : CanDeviceToken
 }
 
+sealed interface CanDeviceType<TToken: CanDeviceToken> {
+    sealed interface Motor<TToken: CanDeviceToken.MotorToken> {
+        data object Neo: Motor<CanDeviceToken.MotorToken.NeoMotorToken>
+        data object Talon: Motor<CanDeviceToken.MotorToken.TalonMotorToken>
+    }
+    data object Encoder: CanDeviceType<CanDeviceToken.EncoderToken>
+    data object Pigeon: CanDeviceType<CanDeviceToken.PigeonToken>
+}
+
 sealed interface GamepadButtonState {
     object Pressed : GamepadButtonState
 
