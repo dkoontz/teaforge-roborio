@@ -1,15 +1,31 @@
 package teaforge.platform.RoboRio.internal
 
 import edu.wpi.first.hal.HALUtil
-import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.GenericHID
-import teaforge.platform.RoboRio.*
-import teaforge.utils.*
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.websocket.*
+import io.ktor.client.request.*
+import io.ktor.websocket.*
+import kotlinx.coroutines.runBlocking
+import teaforge.platform.RoboRio.DioPortState
+import teaforge.platform.RoboRio.HidValue
+import teaforge.platform.RoboRio.RunningRobotState
+import teaforge.platform.RoboRio.Subscription
+import teaforge.utils.Maybe
+import teaforge.utils.map
+import teaforge.utils.unwrap
 
 sealed interface SubscriptionState<TMessage> {
     data class Interval<TMessage>(
         val config: Subscription.Interval<TMessage>,
         val nextReadTimeMicroseconds: Long,
+    ) : SubscriptionState<TMessage>
+
+    data class WebSocket<TMessage>(
+        val config: Subscription.WebSocket<TMessage>,
+        val session: ClientWebSocketSession,
+        val client: HttpClient,
     ) : SubscriptionState<TMessage>
 
     data class DigitalPortValue<TMessage>(
@@ -224,6 +240,26 @@ fun <TMessage, TModel> createInterval(
     )
 }
 
+fun <TMessage, TModel> createWebSocket( // BLOCKING
+    model: RoboRioModel<TMessage, TModel>,
+    config: Subscription.WebSocket<TMessage>,
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
+    val client = HttpClient(CIO) { install(WebSockets) }
+    val session = runBlocking {
+        client.webSocketSession { url(config.url) }
+    }
+    return Pair(
+        model,
+        SubscriptionState.WebSocket(
+            config = config,
+            session = session,
+            client = client
+        ),
+    )
+}
+
+
+
 fun <TMessage, TModel> processSubscription(
     model: RoboRioModel<TMessage, TModel>,
     subscriptionState: SubscriptionState<TMessage>,
@@ -241,6 +277,7 @@ fun <TMessage, TModel> processSubscription(
         is SubscriptionState.CANcoderValue -> runReadCANcoder(model, subscriptionState)
         is SubscriptionState.PigeonValue -> runReadPigeon(model, subscriptionState)
         is SubscriptionState.Interval -> runReadInterval(model, subscriptionState)
+        is SubscriptionState.WebSocket -> runReadWebSocket(model, subscriptionState)
     }
 
 fun <TMessage, TModel> startSubscriptionHandler(
@@ -259,6 +296,7 @@ fun <TMessage, TModel> startSubscriptionHandler(
         is Subscription.CANcoderValue -> createCANcoderValueState(model, subscription)
         is Subscription.PigeonValue -> createPigeonValueState(model, subscription)
         is Subscription.Interval -> createInterval(model, subscription)
+        is Subscription.WebSocket -> createWebSocket(model, subscription)
     }
 
 fun <TMessage, TModel> stopSubscriptionHandler(
@@ -277,6 +315,7 @@ fun <TMessage, TModel> stopSubscriptionHandler(
         is SubscriptionState.CANcoderValue -> model
         is SubscriptionState.PigeonValue<*> -> model
         is SubscriptionState.Interval -> model
+        is SubscriptionState.WebSocket -> closeWebSocket(model, subscriptionState)
     }
 
 fun <TMessage, TModel> runReadDigitalPort(
@@ -435,6 +474,19 @@ fun <TMessage, TModel> runReadInterval(
     }
 }
 
+fun <TMessage, TModel> runReadWebSocket(
+    model: RoboRioModel<TMessage, TModel>,
+    state: SubscriptionState.WebSocket<TMessage>,
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
+    val read: Maybe<String> = state.session.incoming.tryReceive().getOrNull()?.let { frame ->
+        (frame as? Frame.Text)?.let{ Maybe.Some(it.readText()) } ?: Maybe.None
+    } ?: Maybe.None
+
+    val message: Maybe<TMessage> = read.map { state.config.message(it) }
+
+    return Triple(model, state, message)
+}
+
 fun <TMessage, TModel> runReadDigitalPortChanged(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.DigitalPortValueChanged<TMessage>,
@@ -497,4 +549,15 @@ fun <TMessage, TModel> runReadHidPortChanged(
     } else {
         Triple(model, state, Maybe.None)
     }
+}
+
+fun <TMessage, TModel> closeWebSocket(
+    model: RoboRioModel<TMessage, TModel>,
+    state: SubscriptionState.WebSocket<TMessage>,
+) : RoboRioModel<TMessage, TModel> {
+    runBlocking {
+        state.session.close(CloseReason(CloseReason.Codes.NORMAL, "End Program"))
+    }
+    state.client.close()
+    return model
 }
