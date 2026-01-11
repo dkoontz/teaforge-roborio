@@ -26,6 +26,7 @@ class TimedRobotBasedPlatform<TMessage, TModel>(val program: RoboRioProgram<TMes
     }
 
     override fun robotPeriodic() {
+        runner?.let { println(it.subscriptions.size) }
         runner = runner?.let { teaforge.platform.stepProgram(it) }
     }
 
