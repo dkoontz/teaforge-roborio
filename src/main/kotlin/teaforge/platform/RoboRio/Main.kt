@@ -4,7 +4,9 @@ import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
+import teaforge.utils.Maybe
 import teaforge.utils.Result
+import java.util.concurrent.CountDownLatch
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase =
     TimedRobotBasedPlatform<TMessage, TModel>(program)
@@ -68,10 +70,9 @@ sealed interface Effect<out TMessage> {
         val message: (Result<HidInputToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
-    data class InitCanDevice<TMessage>(
-        val type: CanDeviceType,
+    data class InitCanDevice<TMessage, TToken: CanDeviceToken>(
         val id: Int,
-        val message: (CanDeviceType, Int, Result<CanDeviceToken, Error>) -> TMessage,
+        val message: (Int, Result<TToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
     data class SetCanMotorSpeed(
@@ -105,6 +106,11 @@ sealed interface Subscription<out TMessage> {
     data class Interval<TMessage>(
         val millisecondsBetweenReads: Int,
         val message: (Long) -> TMessage,
+    ) : Subscription<TMessage>
+
+    data class WebSocket<TMessage>(
+        val url: String,
+        val message: (String) -> TMessage
     ) : Subscription<TMessage>
 
     data class DigitalPortValue<TMessage>(
