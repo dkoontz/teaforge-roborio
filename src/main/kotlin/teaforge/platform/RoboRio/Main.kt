@@ -3,6 +3,7 @@ package teaforge.platform.RoboRio
 import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
+import teaforge.platform.RoboRio.Subscription.*
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
 import teaforge.utils.Maybe
 import teaforge.utils.Result
@@ -347,62 +348,68 @@ fun <TMessage, TNewMessage> mapSubscription(
 ): Subscription<TNewMessage> =
     when (subscription) {
         is Subscription.Interval ->
-            Subscription.Interval(
+            Interval(
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 message = { elapsed -> mapFunction(subscription.message(elapsed)) },
             )
         is Subscription.DigitalPortValue ->
-            Subscription.DigitalPortValue(
+            DigitalPortValue(
                 token = subscription.token,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 message = { value -> mapFunction(subscription.message(value)) },
             )
         is Subscription.DigitalPortValueChanged ->
-            Subscription.DigitalPortValueChanged(
+            DigitalPortValueChanged(
                 token = subscription.token,
                 message = { oldValue, newValue -> mapFunction(subscription.message(oldValue, newValue)) },
             )
         is Subscription.AnalogPortValue ->
-            Subscription.AnalogPortValue(
+            AnalogPortValue(
                 token = subscription.token,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 useAverageValue = subscription.useAverageValue,
                 message = { value -> mapFunction(subscription.message(value)) },
             )
         is Subscription.AnalogPortValueChanged ->
-            Subscription.AnalogPortValueChanged(
+            AnalogPortValueChanged(
                 token = subscription.token,
                 useAverageValue = subscription.useAverageValue,
                 message = { oldValue, newValue -> mapFunction(subscription.message(oldValue, newValue)) },
             )
         is Subscription.HidPortValue ->
-            Subscription.HidPortValue(
+            HidPortValue(
                 token = subscription.token,
                 message = { value -> mapFunction(subscription.message(value)) },
             )
         is Subscription.HidPortValueChanged ->
-            Subscription.HidPortValueChanged(
+            HidPortValueChanged(
                 token = subscription.token,
                 message = { oldValue, newValue -> mapFunction(subscription.message(oldValue, newValue)) },
             )
         is Subscription.RobotState ->
-            Subscription.RobotState(
+            RobotState(
                 message = { state -> mapFunction(subscription.message(state)) },
             )
         is Subscription.RobotStateChanged ->
-            Subscription.RobotStateChanged(
+            RobotStateChanged(
                 message = { oldState, newState -> mapFunction(subscription.message(oldState, newState)) },
             )
         is Subscription.CANcoderValue ->
-            Subscription.CANcoderValue(
+            CANcoderValue(
                 token = subscription.token,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 message = { value -> mapFunction(subscription.message(value)) },
             )
         is Subscription.PigeonValue ->
-            Subscription.PigeonValue(
+            PigeonValue(
                 pigeon = subscription.pigeon,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 message = { rotation -> mapFunction(subscription.message(rotation)) },
             )
+        is Subscription.WebSocket -> {
+            WebSocket(
+                url = subscription.url,
+                message = { info -> mapFunction(subscription.message(info)) }
+            )
+        }
     }
