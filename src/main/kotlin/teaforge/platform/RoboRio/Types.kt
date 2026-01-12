@@ -178,6 +178,13 @@ sealed interface CanDeviceToken {
     ) : CanDeviceToken
 }
 
+enum class CanDeviceType {
+    Neo,
+    Talon,
+    Encoder,
+    Pigeon,
+}
+
 sealed interface GamepadButtonState {
     object Pressed : GamepadButtonState
 
