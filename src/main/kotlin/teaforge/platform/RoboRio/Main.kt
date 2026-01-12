@@ -70,9 +70,10 @@ sealed interface Effect<out TMessage> {
         val message: (Result<HidInputToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
-    data class InitCanDevice<TMessage, TToken: CanDeviceToken>(
+    data class InitCanDevice<TMessage>(
+        val type: CanDeviceType,
         val id: Int,
-        val message: (Int, Result<TToken, Error>) -> TMessage,
+        val message: (CanDeviceType, Int, Result<CanDeviceToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
     data class SetCanMotorSpeed(
