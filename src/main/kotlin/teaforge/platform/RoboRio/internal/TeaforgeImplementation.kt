@@ -26,6 +26,8 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.*
 import kotlin.collections.Set
+import edu.wpi.first.net.PortForwarder
+
 
 val CANBUS_INIT_TIMEOUT_SECONDS = 1.0
 
@@ -499,6 +501,11 @@ fun <TMessage, TModel> processEffect(
                     }
                 }
             }
+        }
+
+        is Effect.ForwardPort -> {
+            PortForwarder.add(effect.port, effect.remoteName, effect.remotePort)
+            Pair(model, Maybe.None)
         }
     }
 }
