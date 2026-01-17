@@ -4,6 +4,7 @@ import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
 import teaforge.platform.RoboRio.Subscription.*
+import teaforge.platform.RoboRio.internal.SubscriptionState
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
 import teaforge.utils.Maybe
 import teaforge.utils.Result
@@ -71,11 +72,32 @@ sealed interface Effect<out TMessage> {
         val message: (Result<HidInputToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
-    data class InitCanDevice<TMessage>(
-        val type: CanDeviceType,
-        val id: Int,
-        val message: (CanDeviceType, Int, Result<CanDeviceToken, Error>) -> TMessage,
-    ) : Effect<TMessage>
+    sealed interface InitCanDevice<TMessage>  : Effect<TMessage> {
+
+        data class neo<TMessage>(
+            val type: CanDeviceType,
+            val id: Int,
+            val message: (CanDeviceType, Int, Result<CanDeviceToken, Error>) -> TMessage
+        ) : InitCanDevice<TMessage>
+
+        data class talon<TMessage>(
+            val type: CanDeviceType,
+            val id: Int,
+            val message: (CanDeviceType, Int, Result<CanDeviceToken, Error>) -> TMessage
+        ) : InitCanDevice<TMessage>
+
+        data class encoder<TMessage>(
+            val type: CanDeviceType,
+            val id: Int,
+            val message: (CanDeviceType, Int, Result<CanDeviceToken, Error>) -> TMessage
+        ) : InitCanDevice<TMessage>
+
+        data class pigeon<TMessage>(
+            val type: CanDeviceType,
+            val id: Int,
+            val message: (CanDeviceType, Int, Result<CanDeviceToken, Error>) -> TMessage
+        ) : InitCanDevice<TMessage>
+    }
 
     data class SetCanMotorSpeed(
         val motor: CanDeviceToken.MotorToken,
@@ -102,6 +124,8 @@ sealed interface Effect<out TMessage> {
         val token: OrchestraToken,
         val message: (Result<Unit, Error>) -> TMessage,
     ) : Effect<TMessage>
+
+
 }
 
 sealed interface Subscription<out TMessage> {
@@ -168,6 +192,8 @@ sealed interface Subscription<out TMessage> {
         val millisecondsBetweenReads: Int,
         val message: (Rotation3d) -> TMessage,
     ) : Subscription<TMessage>
+
+
 }
 
 /**
@@ -270,12 +296,32 @@ fun <TMessage, TNewMessage> mapEffect(
                 port = effect.port,
                 message = { result -> mapFunction(effect.message(result)) },
             )
-        is Effect.InitCanDevice ->
-            Effect.InitCanDevice(
+
+        is Effect.InitCanDevice.talon ->
+            Effect.InitCanDevice.talon(
                 type = effect.type,
                 id = effect.id,
                 message = { deviceType, deviceId, result -> mapFunction(effect.message(deviceType, deviceId, result)) },
             )
+        is Effect.InitCanDevice.neo ->
+            Effect.InitCanDevice.neo(
+                type = effect.type,
+                id = effect.id,
+                message = { deviceType, deviceId, result -> mapFunction(effect.message(deviceType, deviceId, result)) }
+            )
+        is Effect.InitCanDevice.encoder ->
+            Effect.InitCanDevice.encoder(
+                type = effect.type,
+                id = effect.id,
+                message = { deviceType, deviceId, result -> mapFunction(effect.message(deviceType, deviceId, result)) }
+            )
+        is Effect.InitCanDevice.pigeon ->
+            Effect.InitCanDevice.pigeon(
+                type = effect.type,
+                id = effect.id,
+                message = { deviceType, deviceId, result -> mapFunction(effect.message(deviceType, deviceId, result)) }
+            )
+
         is Effect.SetCanMotorSpeed -> effect
         is Effect.ReadFile ->
             Effect.ReadFile(
@@ -412,4 +458,4 @@ fun <TMessage, TNewMessage> mapSubscription(
                 message = { info -> mapFunction(subscription.message(info)) }
             )
         }
-    }
+         }
