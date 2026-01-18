@@ -1,9 +1,12 @@
 package teaforge.platform.RoboRio
 
+import com.ctre.phoenix6.hardware.TalonFX
+import com.revrobotics.spark.SparkMax
 import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
 import teaforge.platform.RoboRio.Subscription.*
+import teaforge.platform.RoboRio.internal.SubscriptionState
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
 import teaforge.utils.Maybe
 import teaforge.utils.Result
@@ -72,11 +75,29 @@ sealed interface Effect<out TMessage> {
         val message: (Result<HidInputToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
-    data class InitCanDevice<TMessage>(
-        val type: CanDeviceType,
-        val id: Int,
-        val message: (CanDeviceType, Int, Result<CanDeviceToken, Error>) -> TMessage,
-    ) : Effect<TMessage>
+    sealed interface InitCanDevice<TMessage>  : Effect<TMessage> {
+        sealed interface InitMotor<TMessage> : InitCanDevice<TMessage> {
+            data class Neo<TMessage>(
+                val id: Int,
+                val message: (Int, Result<CanDeviceToken, Error>) -> TMessage
+            ) : InitMotor<TMessage>
+
+            data class Talon<TMessage>(
+                val id: Int,
+                val message: (Int, Result<CanDeviceToken, Error>) -> TMessage
+            ) : InitMotor<TMessage>
+        }
+
+        data class Encoder<TMessage>(
+            val id: Int,
+            val message: ( Int, Result<CanDeviceToken, Error>) -> TMessage
+        ) : InitCanDevice<TMessage>
+
+        data class Pigeon<TMessage>(
+            val id: Int,
+            val message: ( Int, Result<CanDeviceToken, Error>) -> TMessage
+        ) : InitCanDevice<TMessage>
+    }
 
     data class SetCanMotorSpeed(
         val motor: CanDeviceToken.MotorToken,
@@ -176,6 +197,8 @@ sealed interface Subscription<out TMessage> {
         val millisecondsBetweenReads: Int,
         val message: (Rotation3d) -> TMessage,
     ) : Subscription<TMessage>
+
+
 }
 
 /**
@@ -278,12 +301,28 @@ fun <TMessage, TNewMessage> mapEffect(
                 port = effect.port,
                 message = { result -> mapFunction(effect.message(result)) },
             )
-        is Effect.InitCanDevice ->
-            Effect.InitCanDevice(
-                type = effect.type,
+
+        is Effect.InitCanDevice.InitMotor.Talon ->
+            Effect.InitCanDevice.InitMotor.Talon(
                 id = effect.id,
-                message = { deviceType, deviceId, result -> mapFunction(effect.message(deviceType, deviceId, result)) },
+                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )
+        is Effect.InitCanDevice.InitMotor.Neo ->
+            Effect.InitCanDevice.InitMotor.Neo(
+                id = effect.id,
+                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) }
+            )
+        is Effect.InitCanDevice.Encoder ->
+            Effect.InitCanDevice.Encoder(
+                id = effect.id,
+                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) }
+            )
+        is Effect.InitCanDevice.Pigeon ->
+            Effect.InitCanDevice.Pigeon(
+                id = effect.id,
+                message = { deviceId, result -> mapFunction(effect.message( deviceId, result)) }
+            )
+
         is Effect.SetCanMotorSpeed -> effect
         is Effect.ReadFile ->
             Effect.ReadFile(
@@ -362,69 +401,69 @@ fun <TMessage, TNewMessage> mapSubscription(
     mapFunction: (TMessage) -> TNewMessage,
 ): Subscription<TNewMessage> =
     when (subscription) {
-        is Subscription.Interval ->
+        is Interval ->
             Interval(
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 message = { elapsed -> mapFunction(subscription.message(elapsed)) },
             )
-        is Subscription.DigitalPortValue ->
+        is DigitalPortValue ->
             DigitalPortValue(
                 token = subscription.token,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 message = { value -> mapFunction(subscription.message(value)) },
             )
-        is Subscription.DigitalPortValueChanged ->
+        is DigitalPortValueChanged ->
             DigitalPortValueChanged(
                 token = subscription.token,
                 message = { oldValue, newValue -> mapFunction(subscription.message(oldValue, newValue)) },
             )
-        is Subscription.AnalogPortValue ->
+        is AnalogPortValue ->
             AnalogPortValue(
                 token = subscription.token,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 useAverageValue = subscription.useAverageValue,
                 message = { value -> mapFunction(subscription.message(value)) },
             )
-        is Subscription.AnalogPortValueChanged ->
+        is AnalogPortValueChanged ->
             AnalogPortValueChanged(
                 token = subscription.token,
                 useAverageValue = subscription.useAverageValue,
                 message = { oldValue, newValue -> mapFunction(subscription.message(oldValue, newValue)) },
             )
-        is Subscription.HidPortValue ->
+        is HidPortValue ->
             HidPortValue(
                 token = subscription.token,
                 message = { value -> mapFunction(subscription.message(value)) },
             )
-        is Subscription.HidPortValueChanged ->
+        is HidPortValueChanged ->
             HidPortValueChanged(
                 token = subscription.token,
                 message = { oldValue, newValue -> mapFunction(subscription.message(oldValue, newValue)) },
             )
-        is Subscription.RobotState ->
+        is RobotState ->
             RobotState(
                 message = { state -> mapFunction(subscription.message(state)) },
             )
-        is Subscription.RobotStateChanged ->
+        is RobotStateChanged ->
             RobotStateChanged(
                 message = { oldState, newState -> mapFunction(subscription.message(oldState, newState)) },
             )
-        is Subscription.CANcoderValue ->
+        is CANcoderValue ->
             CANcoderValue(
                 token = subscription.token,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 message = { value -> mapFunction(subscription.message(value)) },
             )
-        is Subscription.PigeonValue ->
+        is PigeonValue ->
             PigeonValue(
                 pigeon = subscription.pigeon,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 message = { rotation -> mapFunction(subscription.message(rotation)) },
             )
-        is Subscription.WebSocket -> {
+        is WebSocket -> {
             WebSocket(
                 url = subscription.url,
                 message = { info -> mapFunction(subscription.message(info)) }
             )
         }
-    }
+         }
