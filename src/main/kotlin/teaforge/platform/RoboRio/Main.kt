@@ -104,11 +104,12 @@ sealed interface Effect<out TMessage> {
         val message: (Result<Unit, Error>) -> TMessage,
     ) : Effect<TMessage>
 
-    data class ForwardPort(
+    data class ForwardPort<TMessage>(
         val port: Int,
         val remoteName: String,
         val remotePort: Int,
-    ) : Effect<Nothing>
+        val message: (Result<Unit, Error>) -> TMessage,
+    ) : Effect<TMessage>
 }
 
 sealed interface Subscription<out TMessage> {
@@ -305,7 +306,13 @@ fun <TMessage, TNewMessage> mapEffect(
                 token = effect.token,
                 message = { result -> mapFunction(effect.message(result)) },
             )
-        is Effect.ForwardPort -> effect
+        is Effect.ForwardPort ->
+            Effect.ForwardPort(
+                port = effect.port,
+                remoteName = effect.remoteName,
+                remotePort = effect.remotePort,
+                message = { result -> mapFunction(effect.message(result)) }
+            )
     }
 
 /**
