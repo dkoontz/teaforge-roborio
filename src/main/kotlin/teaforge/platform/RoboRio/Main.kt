@@ -1,5 +1,7 @@
 package teaforge.platform.RoboRio
 
+import com.ctre.phoenix6.hardware.TalonFX
+import com.revrobotics.spark.SparkMax
 import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
@@ -73,29 +75,26 @@ sealed interface Effect<out TMessage> {
     ) : Effect<TMessage>
 
     sealed interface InitCanDevice<TMessage>  : Effect<TMessage> {
+        sealed interface InitMotor<TMessage> : InitCanDevice<TMessage> {
+            data class Neo<TMessage>(
+                val id: Int,
+                val message: (Int, Result<CanDeviceToken, Error>) -> TMessage
+            ) : InitMotor<TMessage>
 
-        data class neo<TMessage>(
-            val type: CanDeviceType,
+            data class Talon<TMessage>(
+                val id: Int,
+                val message: (Int, Result<CanDeviceToken, Error>) -> TMessage
+            ) : InitMotor<TMessage>
+        }
+
+        data class Encoder<TMessage>(
             val id: Int,
-            val message: (CanDeviceType, Int, Result<CanDeviceToken, Error>) -> TMessage
+            val message: ( Int, Result<CanDeviceToken, Error>) -> TMessage
         ) : InitCanDevice<TMessage>
 
-        data class talon<TMessage>(
-            val type: CanDeviceType,
+        data class Pigeon<TMessage>(
             val id: Int,
-            val message: (CanDeviceType, Int, Result<CanDeviceToken, Error>) -> TMessage
-        ) : InitCanDevice<TMessage>
-
-        data class encoder<TMessage>(
-            val type: CanDeviceType,
-            val id: Int,
-            val message: (CanDeviceType, Int, Result<CanDeviceToken, Error>) -> TMessage
-        ) : InitCanDevice<TMessage>
-
-        data class pigeon<TMessage>(
-            val type: CanDeviceType,
-            val id: Int,
-            val message: (CanDeviceType, Int, Result<CanDeviceToken, Error>) -> TMessage
+            val message: ( Int, Result<CanDeviceToken, Error>) -> TMessage
         ) : InitCanDevice<TMessage>
     }
 
@@ -297,29 +296,25 @@ fun <TMessage, TNewMessage> mapEffect(
                 message = { result -> mapFunction(effect.message(result)) },
             )
 
-        is Effect.InitCanDevice.talon ->
-            Effect.InitCanDevice.talon(
-                type = effect.type,
+        is Effect.InitCanDevice.InitMotor.Talon ->
+            Effect.InitCanDevice.InitMotor.Talon(
                 id = effect.id,
-                message = { deviceType, deviceId, result -> mapFunction(effect.message(deviceType, deviceId, result)) },
+                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )
-        is Effect.InitCanDevice.neo ->
-            Effect.InitCanDevice.neo(
-                type = effect.type,
+        is Effect.InitCanDevice.InitMotor.Neo ->
+            Effect.InitCanDevice.InitMotor.Neo(
                 id = effect.id,
-                message = { deviceType, deviceId, result -> mapFunction(effect.message(deviceType, deviceId, result)) }
+                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) }
             )
-        is Effect.InitCanDevice.encoder ->
-            Effect.InitCanDevice.encoder(
-                type = effect.type,
+        is Effect.InitCanDevice.Encoder ->
+            Effect.InitCanDevice.Encoder(
                 id = effect.id,
-                message = { deviceType, deviceId, result -> mapFunction(effect.message(deviceType, deviceId, result)) }
+                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) }
             )
-        is Effect.InitCanDevice.pigeon ->
-            Effect.InitCanDevice.pigeon(
-                type = effect.type,
+        is Effect.InitCanDevice.Pigeon ->
+            Effect.InitCanDevice.Pigeon(
                 id = effect.id,
-                message = { deviceType, deviceId, result -> mapFunction(effect.message(deviceType, deviceId, result)) }
+                message = { deviceId, result -> mapFunction(effect.message( deviceId, result)) }
             )
 
         is Effect.SetCanMotorSpeed -> effect
@@ -393,66 +388,66 @@ fun <TMessage, TNewMessage> mapSubscription(
     mapFunction: (TMessage) -> TNewMessage,
 ): Subscription<TNewMessage> =
     when (subscription) {
-        is Subscription.Interval ->
+        is Interval ->
             Interval(
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 message = { elapsed -> mapFunction(subscription.message(elapsed)) },
             )
-        is Subscription.DigitalPortValue ->
+        is DigitalPortValue ->
             DigitalPortValue(
                 token = subscription.token,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 message = { value -> mapFunction(subscription.message(value)) },
             )
-        is Subscription.DigitalPortValueChanged ->
+        is DigitalPortValueChanged ->
             DigitalPortValueChanged(
                 token = subscription.token,
                 message = { oldValue, newValue -> mapFunction(subscription.message(oldValue, newValue)) },
             )
-        is Subscription.AnalogPortValue ->
+        is AnalogPortValue ->
             AnalogPortValue(
                 token = subscription.token,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 useAverageValue = subscription.useAverageValue,
                 message = { value -> mapFunction(subscription.message(value)) },
             )
-        is Subscription.AnalogPortValueChanged ->
+        is AnalogPortValueChanged ->
             AnalogPortValueChanged(
                 token = subscription.token,
                 useAverageValue = subscription.useAverageValue,
                 message = { oldValue, newValue -> mapFunction(subscription.message(oldValue, newValue)) },
             )
-        is Subscription.HidPortValue ->
+        is HidPortValue ->
             HidPortValue(
                 token = subscription.token,
                 message = { value -> mapFunction(subscription.message(value)) },
             )
-        is Subscription.HidPortValueChanged ->
+        is HidPortValueChanged ->
             HidPortValueChanged(
                 token = subscription.token,
                 message = { oldValue, newValue -> mapFunction(subscription.message(oldValue, newValue)) },
             )
-        is Subscription.RobotState ->
+        is RobotState ->
             RobotState(
                 message = { state -> mapFunction(subscription.message(state)) },
             )
-        is Subscription.RobotStateChanged ->
+        is RobotStateChanged ->
             RobotStateChanged(
                 message = { oldState, newState -> mapFunction(subscription.message(oldState, newState)) },
             )
-        is Subscription.CANcoderValue ->
+        is CANcoderValue ->
             CANcoderValue(
                 token = subscription.token,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 message = { value -> mapFunction(subscription.message(value)) },
             )
-        is Subscription.PigeonValue ->
+        is PigeonValue ->
             PigeonValue(
                 pigeon = subscription.pigeon,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 message = { rotation -> mapFunction(subscription.message(rotation)) },
             )
-        is Subscription.WebSocket -> {
+        is WebSocket -> {
             WebSocket(
                 url = subscription.url,
                 message = { info -> mapFunction(subscription.message(info)) }
