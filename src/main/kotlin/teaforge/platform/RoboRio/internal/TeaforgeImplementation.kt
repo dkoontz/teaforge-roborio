@@ -87,7 +87,7 @@ fun <TMessage, TModel> endOfUpdateCycle(model: RoboRioModel<TMessage, TModel>): 
 fun <TMessage, TModel> processHistoryEntry(
     roboRioModel: RoboRioModel<TMessage, TModel>,
     event: HistoryEntry<TMessage, TModel>,
-): RoboRioModel<TMessage, TModel> = roboRioModel.copy(messageHistory = roboRioModel.messageHistory + event)
+): RoboRioModel<TMessage, TModel> = roboRioModel//.copy(messageHistory = roboRioModel.messageHistory + event) TODO implement debugger
 
 fun <TMessage, TModel> initRoboRioRunner(
     @Suppress("UNUSED_PARAMETER") args: List<String>,
