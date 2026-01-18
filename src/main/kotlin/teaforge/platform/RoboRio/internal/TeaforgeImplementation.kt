@@ -26,6 +26,8 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.*
 import kotlin.collections.Set
+import edu.wpi.first.net.PortForwarder
+
 
 val CANBUS_INIT_TIMEOUT_SECONDS = 1.0
 
@@ -500,6 +502,20 @@ fun <TMessage, TModel> processEffect(
                 }
 
 
+            }
+        }
+
+        is Effect.ForwardPort -> {
+            if ((effect.port >= 1024u) and (!effect.remoteName.any{it in "\$_+!*'(),/?:@=&"})){
+                PortForwarder.add(effect.port.toInt(), effect.remoteName, effect.remotePort.toInt())
+                val result = Result.Success<UShort, Error>(effect.port)
+                model to Maybe.Some(effect.message(result))
+            } else if (effect.port < 1024u) {
+                val result = Result.Error<UShort, Error>(Error.PortInitializationError(details = "Port number must be no less than 1024"))
+                model to Maybe.Some(effect.message(result))
+            } else{
+                val result = Result.Error<UShort, Error>(Error.PortInitializationError(details = "Invalid remote name (must be DNS or IP address)"))
+                model to Maybe.Some(effect.message(result))
             }
         }
     }

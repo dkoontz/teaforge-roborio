@@ -12,6 +12,7 @@ import teaforge.utils.Maybe
 import teaforge.utils.Result
 import java.util.concurrent.CountDownLatch
 
+
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase =
     TimedRobotBasedPlatform<TMessage, TModel>(program)
 
@@ -124,7 +125,12 @@ sealed interface Effect<out TMessage> {
         val message: (Result<Unit, Error>) -> TMessage,
     ) : Effect<TMessage>
 
-
+    data class ForwardPort<TMessage>(
+        val port: UShort,
+        val remoteName: String,
+        val remotePort: UShort,
+        val message: (Result<UShort, Error>) -> TMessage,
+    ) : Effect<TMessage>
 }
 
 sealed interface Subscription<out TMessage> {
@@ -338,6 +344,13 @@ fun <TMessage, TNewMessage> mapEffect(
             Effect.StopSong(
                 token = effect.token,
                 message = { result -> mapFunction(effect.message(result)) },
+            )
+        is Effect.ForwardPort ->
+            Effect.ForwardPort(
+                port = effect.port,
+                remoteName = effect.remoteName,
+                remotePort = effect.remotePort,
+                message = { result -> mapFunction(effect.message(result)) }
             )
     }
 
