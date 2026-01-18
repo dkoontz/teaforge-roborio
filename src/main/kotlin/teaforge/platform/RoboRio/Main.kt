@@ -105,10 +105,10 @@ sealed interface Effect<out TMessage> {
     ) : Effect<TMessage>
 
     data class ForwardPort<TMessage>(
-        val port: Int,
+        val port: UShort,
         val remoteName: String,
-        val remotePort: Int,
-        val message: (Result<Unit, Error>) -> TMessage,
+        val remotePort: UShort,
+        val message: (Result<UShort, Error>) -> TMessage,
     ) : Effect<TMessage>
 }
 
