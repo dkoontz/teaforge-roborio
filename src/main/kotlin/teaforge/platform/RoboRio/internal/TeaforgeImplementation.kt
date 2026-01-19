@@ -45,25 +45,30 @@ fun <TMessage, TModel> createRoboRioRunner(
     roboRioArgs: List<String>,
     programArgs: List<String>,
 ): ProgramRunnerInstance<
-    Effect<TMessage>,
-    TMessage,
-    TModel,
-    RoboRioModel<TMessage, TModel>,
-    Subscription<TMessage>,
-    SubscriptionState<TMessage>,
-> {
+        Effect<TMessage>,
+        Effect.InstantEffect<TMessage>,
+        Effect.LateEffect<TMessage>,
+        TMessage,
+        TModel,
+        RoboRioModel<TMessage, TModel>,
+        Subscription<TMessage>,
+        SubscriptionState<TMessage>,
+        > {
     val runnerConfig:
-        ProgramRunnerConfig<
-            Effect<TMessage>,
-            TMessage,
-            TModel,
-            RoboRioModel<TMessage, TModel>,
-            Subscription<TMessage>,
-            SubscriptionState<TMessage>,
-        > =
+            ProgramRunnerConfig<
+                    Effect<TMessage>,
+                    Effect.InstantEffect<TMessage>,
+                    Effect.LateEffect<TMessage>,
+                    TMessage,
+                    TModel,
+                    RoboRioModel<TMessage, TModel>,
+                    Subscription<TMessage>,
+                    SubscriptionState<TMessage>,
+                    > =
         ProgramRunnerConfig(
             initRunner = ::initRoboRioRunner,
-            processEffect = ::processEffect,
+            processInstantEffect = ::processInstantEffect,
+            processLateEffect = ::processLateEffect,
             processSubscription = ::processSubscription,
             startOfUpdateCycle = ::startOfUpdateCycle,
             endOfUpdateCycle = ::endOfUpdateCycle,
@@ -107,12 +112,24 @@ fun <TMessage, TModel> initRoboRioRunner(
     )
 }
 
-fun <TMessage, TModel> processEffect(
+fun <TMessage, TModel> processLateEffect(
     model: RoboRioModel<TMessage, TModel>,
-    effect: Effect<TMessage>,
+    effect: Effect.LateEffect<TMessage>,
+): (RoboRioModel<TMessage, TModel>) -> Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
+    return when (effect) {
+        is Effect.LateEffect.Example -> {
+            val lambda = { m: RoboRioModel<TMessage, TModel> -> Pair(m, Maybe.None) }
+            lambda
+        }
+    }
+}
+
+fun <TMessage, TModel> processInstantEffect(
+    model: RoboRioModel<TMessage, TModel>,
+    effect: Effect.InstantEffect<TMessage>,
 ): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
     return when (effect) {
-        is Effect.InitAnalogPortForInput -> {
+        is Effect.InstantEffect.InitAnalogPortForInput<TMessage> -> {
             // Check if the analog port has already been initialized
             val alreadyInitialized = model.analogInputTokens.any { it.port == effect.port }
             if (alreadyInitialized) {
@@ -139,7 +156,7 @@ fun <TMessage, TModel> processEffect(
                 }
             }
         }
-        is Effect.InitAnalogPortForOutput -> {
+        is Effect.InstantEffect.InitAnalogPortForOutput -> {
             // Check if the analog port has already been initialized
             val alreadyInitialized = model.analogOutputTokens.any { it.port == effect.port }
             if (alreadyInitialized) {
@@ -167,7 +184,7 @@ fun <TMessage, TModel> processEffect(
             }
         }
 
-        is Effect.InitDigitalPortForInput -> {
+        is Effect.InstantEffect.InitDigitalPortForInput -> {
             // Check if the digital port has already been initialized
             val alreadyInitialized = model.digitalInputTokens.any { it.port == effect.port }
             if (alreadyInitialized) {
@@ -195,7 +212,7 @@ fun <TMessage, TModel> processEffect(
             }
         }
 
-        is Effect.InitDigitalPortForOutput -> {
+        is Effect.InstantEffect.InitDigitalPortForOutput -> {
             // Check if the digital port has already been initialized
             val alreadyInitialized = model.digitalOutputTokens.any { it.port == effect.port }
             if (alreadyInitialized) {
@@ -229,7 +246,7 @@ fun <TMessage, TModel> processEffect(
         }
 
         // TODO: PWM ports should be configurable to use a variety of motors, not just a Spark
-        is Effect.InitPwmPortForOutput -> {
+        is Effect.InstantEffect.InitPwmPortForOutput -> {
             // Check if the PWM port has already been initialized
             val alreadyInitialized = model.pwmOutputTokens.any { it.port == effect.port }
             if (alreadyInitialized) {
@@ -257,7 +274,7 @@ fun <TMessage, TModel> processEffect(
             }
         }
 
-        is Effect.InitHidPortForInput -> {
+        is Effect.InstantEffect.InitHidPortForInput -> {
             // Check if the HID port has already been initialized
             val alreadyInitialized = model.hidInputTokens.any { it.port == effect.port }
             if (alreadyInitialized) {
@@ -280,12 +297,12 @@ fun <TMessage, TModel> processEffect(
             }
         }
 
-        is Effect.Log -> {
+        is Effect.InstantEffect.Log -> {
             log(effect.msg)
             Pair(model, Maybe.None)
         }
 
-        is Effect.LoadSong -> {
+        is Effect.InstantEffect.LoadSong -> {
             try {
                 val motor = effect.motor.device
                 val orchestra = Orchestra(listOf(motor))
@@ -317,7 +334,7 @@ fun <TMessage, TModel> processEffect(
             }
         }
 
-        is Effect.PlaySong -> {
+        is Effect.InstantEffect.PlaySong -> {
             try {
                 val status = effect.token.orchestra.play()
                 if (status.isOK) {
@@ -340,7 +357,7 @@ fun <TMessage, TModel> processEffect(
             }
         }
 
-        is Effect.StopSong -> {
+        is Effect.InstantEffect.StopSong -> {
             try {
                 val status = effect.token.orchestra.stop()
                 if (status.isOK) {
@@ -364,7 +381,7 @@ fun <TMessage, TModel> processEffect(
             }
         }
 
-        is Effect.SetCanMotorSpeed -> {
+        is Effect.InstantEffect.SetCanMotorSpeed -> {
             when (effect.motor) {
                 is CanDeviceToken.MotorToken.TalonMotorToken -> effect.motor.device.set(effect.value)
                 is CanDeviceToken.MotorToken.NeoMotorToken -> effect.motor.device.set(effect.value)
@@ -372,7 +389,7 @@ fun <TMessage, TModel> processEffect(
             return model to Maybe.None
         }
 
-        is Effect.ReadFile -> {
+        is Effect.InstantEffect.ReadFile -> {
             val result: Result<ByteArray, Error> =
                 try {
                     val path: Path = Paths.get(effect.path)
@@ -397,7 +414,7 @@ fun <TMessage, TModel> processEffect(
             model to Maybe.Some(effect.message(result))
         }
 
-        is Effect.SetDigitalPortState -> {
+        is Effect.InstantEffect.SetDigitalPortState -> {
             try {
                 val state =
                     when (effect.value) {
@@ -416,7 +433,7 @@ fun <TMessage, TModel> processEffect(
             }
         }
 
-        is Effect.SetAnalogPortVoltage -> {
+        is Effect.InstantEffect.SetAnalogPortVoltage -> {
             try {
                 effect.token.device.voltage = effect.voltage
                 val result = Result.Success<AnalogPort, Error>(effect.token.port)
@@ -430,7 +447,7 @@ fun <TMessage, TModel> processEffect(
             }
         }
 
-        is Effect.SetPwmValue -> {
+        is Effect.InstantEffect.SetPwmValue -> {
             try {
                 effect.token.device.set(effect.value)
                 val result = Result.Success<PwmPort, Error>(effect.token.port)
@@ -444,7 +461,7 @@ fun <TMessage, TModel> processEffect(
             }
         }
 
-        is Effect.InitCanDevice -> {
+        is Effect.InstantEffect.InitCanDevice -> {
             // Local helpers for success and error cases
             fun success(token: CanDeviceToken): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
                 val result = Result.Success<CanDeviceToken, Error>(token)

@@ -1,7 +1,6 @@
 package teaforge.platform.RoboRio.internal
 
 import edu.wpi.first.wpilibj.TimedRobot
-import teaforge.ProgramRunnerInstance
 import teaforge.platform.RoboRio.Effect
 import teaforge.platform.RoboRio.RoboRioProgram
 import teaforge.platform.RoboRio.Subscription
