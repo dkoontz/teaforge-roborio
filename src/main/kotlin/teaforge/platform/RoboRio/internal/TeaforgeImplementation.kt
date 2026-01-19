@@ -110,14 +110,14 @@ fun <TMessage, TModel> initRoboRioRunner(
 fun <TMessage, TModel> processEffect(
     model: RoboRioModel<TMessage, TModel>,
     effect: Effect<TMessage>,
-): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
-    return when (effect) {
+): (RoboRioModel<TMessage, TModel>) -> Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
+    when (effect) {
         is Effect.InitAnalogPortForInput -> {
             // Check if the analog port has already been initialized
             val alreadyInitialized = model.analogInputTokens.any { it.port == effect.port }
             if (alreadyInitialized) {
                 val result = Result.Error<AnalogInputToken, Error>(Error.AlreadyInitialized)
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             } else {
                 // Configure the analog port for input using WPILib
                 try {
@@ -127,15 +127,17 @@ fun <TMessage, TModel> processEffect(
                     analogInput.voltage
 
                     val token = AnalogInputToken(effect.port, analogInput)
-                    val newModel = model.copy(analogInputTokens = model.analogInputTokens + token)
                     val result = Result.Success<AnalogInputToken, Error>(token)
-                    newModel to Maybe.Some(effect.message(result))
+                    return { m ->
+                        val newModel = m.copy(analogInputTokens = model.analogInputTokens + token)
+                        newModel to Maybe.Some(effect.message(result))
+                    }
                 } catch (e: Exception) {
                     val result =
                         Result.Error<AnalogInputToken, Error>(
                             Error.PortInitializationError(e.message ?: "Unknown error initializing analog input"),
                         )
-                    model to Maybe.Some(effect.message(result))
+                    return { m -> m to Maybe.Some(effect.message(result)) }
                 }
             }
         }
@@ -144,7 +146,7 @@ fun <TMessage, TModel> processEffect(
             val alreadyInitialized = model.analogOutputTokens.any { it.port == effect.port }
             if (alreadyInitialized) {
                 val result = Result.Error<AnalogOutputToken, Error>(Error.AlreadyInitialized)
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             } else {
                 // Configure the analog port for output using WPILib
                 try {
@@ -154,15 +156,17 @@ fun <TMessage, TModel> processEffect(
                     analogOutput.voltage = effect.initialVoltage
 
                     val token = AnalogOutputToken(effect.port, analogOutput)
-                    val newModel = model.copy(analogOutputTokens = model.analogOutputTokens + token)
                     val result = Result.Success<AnalogOutputToken, Error>(token)
-                    newModel to Maybe.Some(effect.message(result))
+                    return { m ->
+                        val newModel = m.copy(analogOutputTokens = model.analogOutputTokens + token)
+                        newModel to Maybe.Some(effect.message(result))
+                    }
                 } catch (e: Exception) {
                     val result =
                         Result.Error<AnalogOutputToken, Error>(
                             Error.PortInitializationError(e.message ?: "Unknown error initializing analog output"),
                         )
-                    model to Maybe.Some(effect.message(result))
+                    return { m -> m to Maybe.Some(effect.message(result)) }
                 }
             }
         }
@@ -172,7 +176,7 @@ fun <TMessage, TModel> processEffect(
             val alreadyInitialized = model.digitalInputTokens.any { it.port == effect.port }
             if (alreadyInitialized) {
                 val result = Result.Error<DigitalInputToken, Error>(Error.AlreadyInitialized)
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             } else {
                 // Configure the digital port for input using WPILib
                 try {
@@ -182,15 +186,17 @@ fun <TMessage, TModel> processEffect(
                     digitalInput.get()
 
                     val token = DigitalInputToken(effect.port, digitalInput)
-                    val newModel = model.copy(digitalInputTokens = model.digitalInputTokens + token)
                     val result = Result.Success<DigitalInputToken, Error>(token)
-                    newModel to Maybe.Some(effect.message(result))
+                    return { m ->
+                        val newModel = model.copy(digitalInputTokens = model.digitalInputTokens + token)
+                        newModel to Maybe.Some(effect.message(result))
+                    }
                 } catch (e: Exception) {
                     val result =
                         Result.Error<DigitalInputToken, Error>(
                             Error.PortInitializationError(e.message ?: "Unknown error initializing digital input"),
                         )
-                    model to Maybe.Some(effect.message(result))
+                    return { m -> m to Maybe.Some(effect.message(result)) }
                 }
             }
         }
@@ -200,7 +206,7 @@ fun <TMessage, TModel> processEffect(
             val alreadyInitialized = model.digitalOutputTokens.any { it.port == effect.port }
             if (alreadyInitialized) {
                 val result = Result.Error<DigitalOutputToken, Error>(Error.AlreadyInitialized)
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             } else {
                 // Configure the digital port for output using WPILib
                 try {
@@ -215,15 +221,17 @@ fun <TMessage, TModel> processEffect(
                     digitalOutput.set(initialState)
 
                     val token = DigitalOutputToken(effect.port, digitalOutput)
-                    val newModel = model.copy(digitalOutputTokens = model.digitalOutputTokens + token)
                     val result = Result.Success<DigitalOutputToken, Error>(token)
-                    newModel to Maybe.Some(effect.message(result))
+                    return { m ->
+                        val newModel = model.copy(digitalOutputTokens = model.digitalOutputTokens + token)
+                        newModel to Maybe.Some(effect.message(result))
+                    }
                 } catch (e: Exception) {
                     val result =
                         Result.Error<DigitalOutputToken, Error>(
                             Error.PortInitializationError(e.message ?: "Unknown error initializing digital output"),
                         )
-                    model to Maybe.Some(effect.message(result))
+                    return { m -> m to Maybe.Some(effect.message(result)) }
                 }
             }
         }
@@ -234,7 +242,7 @@ fun <TMessage, TModel> processEffect(
             val alreadyInitialized = model.pwmOutputTokens.any { it.port == effect.port }
             if (alreadyInitialized) {
                 val result = Result.Error<PwmOutputToken, Error>(Error.AlreadyInitialized)
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             } else {
                 // Configure the PWM port for output using WPILib
                 try {
@@ -244,15 +252,17 @@ fun <TMessage, TModel> processEffect(
                     pwmOutput.set(effect.initialSpeed)
 
                     val token = PwmOutputToken(effect.port, pwmOutput)
-                    val newModel = model.copy(pwmOutputTokens = model.pwmOutputTokens + token)
                     val result = Result.Success<PwmOutputToken, Error>(token)
-                    newModel to Maybe.Some(effect.message(result))
+                    return { m ->
+                        val newModel = model.copy(pwmOutputTokens = model.pwmOutputTokens + token)
+                        newModel to Maybe.Some(effect.message(result))
+                    }
                 } catch (e: Exception) {
                     val result =
                         Result.Error<PwmOutputToken, Error>(
                             Error.PortInitializationError(e.message ?: "Unknown error initializing PWM output"),
                         )
-                    model to Maybe.Some(effect.message(result))
+                    return { m -> m to Maybe.Some(effect.message(result)) }
                 }
             }
         }
@@ -262,27 +272,29 @@ fun <TMessage, TModel> processEffect(
             val alreadyInitialized = model.hidInputTokens.any { it.port == effect.port }
             if (alreadyInitialized) {
                 val result = Result.Error<HidInputToken, Error>(Error.AlreadyInitialized)
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             } else {
                 // HID devices don't require complex initialization - just create the token
                 try {
                     val token = HidInputToken(effect.port)
-                    val newModel = model.copy(hidInputTokens = model.hidInputTokens + token)
                     val result = Result.Success<HidInputToken, Error>(token)
-                    newModel to Maybe.Some(effect.message(result))
+                    return { m ->
+                        val newModel = model.copy(hidInputTokens = model.hidInputTokens + token)
+                        newModel to Maybe.Some(effect.message(result))
+                    }
                 } catch (e: Exception) {
                     val result =
                         Result.Error<HidInputToken, Error>(
                             Error.PortInitializationError(e.message ?: "Unknown error initializing HID input"),
                         )
-                    model to Maybe.Some(effect.message(result))
+                    return { m -> m to Maybe.Some(effect.message(result)) }
                 }
             }
         }
 
         is Effect.Log -> {
             log(effect.msg)
-            Pair(model, Maybe.None)
+            return { m -> m to Maybe.None }
         }
 
         is Effect.LoadSong -> {
@@ -300,20 +312,20 @@ fun <TMessage, TModel> processEffect(
                 if (status.isOK) {
                     val token = OrchestraToken(effect.motor, orchestra)
                     val result = Result.Success<OrchestraToken, Error>(token)
-                    model to Maybe.Some(effect.message(result))
+                    return { m -> m to Maybe.Some(effect.message(result)) }
                 } else {
                     val result =
                         Result.Error<OrchestraToken, Error>(
                             Error.PhoenixError(effect.motor.id, status),
                         )
-                    model to Maybe.Some(effect.message(result))
+                    return { m -> m to Maybe.Some(effect.message(result)) }
                 }
             } catch (e: Exception) {
                 val result =
                     Result.Error<OrchestraToken, Error>(
                         Error.PhoenixError(effect.motor.id, com.ctre.phoenix6.StatusCode.GeneralError),
                     )
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             }
         }
 
@@ -328,7 +340,7 @@ fun <TMessage, TModel> processEffect(
                         Result.Error<Unit, Error>(
                             Error.PhoenixError(effect.token.motor.id, status),
                         )
-                    model to Maybe.Some(effect.message(result))
+                    return { m -> m to Maybe.Some(effect.message(result)) }
                 }
             } catch (e: Exception) {
                 // TODO: We should be able to catch Phoenix specific errors here to give a better status
@@ -336,7 +348,7 @@ fun <TMessage, TModel> processEffect(
                     Result.Error<Unit, Error>(
                         Error.PhoenixError(effect.token.motor.id, com.ctre.phoenix6.StatusCode.GeneralError),
                     )
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             }
         }
 
@@ -346,13 +358,13 @@ fun <TMessage, TModel> processEffect(
                 if (status.isOK) {
                     effect.token.orchestra.close()
                     val result = Result.Success<Unit, Error>(Unit)
-                    model to Maybe.Some(effect.message(result))
+                    return { m -> m to Maybe.Some(effect.message(result)) }
                 } else {
                     val result =
                         Result.Error<Unit, Error>(
                             Error.PhoenixError(effect.token.motor.id, status),
                         )
-                    model to Maybe.Some(effect.message(result))
+                    return { m -> m to Maybe.Some(effect.message(result)) }
                 }
             } catch (e: Exception) {
                 // TODO: We should be able to catch Phoenix specific errors here to give a better status
@@ -360,7 +372,7 @@ fun <TMessage, TModel> processEffect(
                     Result.Error<Unit, Error>(
                         Error.PhoenixError(effect.token.motor.id, com.ctre.phoenix6.StatusCode.GeneralError),
                     )
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             }
         }
 
@@ -369,7 +381,7 @@ fun <TMessage, TModel> processEffect(
                 is CanDeviceToken.MotorToken.TalonMotorToken -> effect.motor.device.set(effect.value)
                 is CanDeviceToken.MotorToken.NeoMotorToken -> effect.motor.device.set(effect.value)
             }
-            return model to Maybe.None
+            return { m -> m to Maybe.None }
         }
 
         is Effect.ReadFile -> {
@@ -394,7 +406,7 @@ fun <TMessage, TModel> processEffect(
                     Result.Error(Error.FileReadError(effect.path, e.message ?: "Unknown error"))
                 }
 
-            model to Maybe.Some(effect.message(result))
+            return { m -> m to Maybe.Some(effect.message(result)) }
         }
 
         is Effect.SetDigitalPortState -> {
@@ -406,13 +418,13 @@ fun <TMessage, TModel> processEffect(
                     }
                 effect.token.device.set(state)
                 val result = Result.Success<DioPort, Error>(effect.token.port)
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             } catch (e: Exception) {
                 val result =
                     Result.Error<DioPort, Error>(
                         Error.DigitalPortError(effect.token.port, e.message ?: "Failed to set digital port state"),
                     )
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             }
         }
 
@@ -420,13 +432,13 @@ fun <TMessage, TModel> processEffect(
             try {
                 effect.token.device.voltage = effect.voltage
                 val result = Result.Success<AnalogPort, Error>(effect.token.port)
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             } catch (e: Exception) {
                 val result =
                     Result.Error<AnalogPort, Error>(
                         Error.AnalogPortError(effect.token.port, e.message ?: "Failed to set analog port voltage"),
                     )
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             }
         }
 
@@ -434,28 +446,30 @@ fun <TMessage, TModel> processEffect(
             try {
                 effect.token.device.set(effect.value)
                 val result = Result.Success<PwmPort, Error>(effect.token.port)
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             } catch (e: Exception) {
                 val result =
                     Result.Error<PwmPort, Error>(
                         Error.PwmPortError(effect.token.port, e.message ?: "Failed to set PWM motor speed"),
                     )
-                model to Maybe.Some(effect.message(result))
+                return { m -> m to Maybe.Some(effect.message(result)) }
             }
         }
 
         is Effect.InitCanDevice -> {
             // Local helpers for success and error cases
-            fun success(token: CanDeviceToken): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
+            fun success(token: CanDeviceToken): (RoboRioModel<TMessage, TModel>) -> Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
                 val result = Result.Success<CanDeviceToken, Error>(token)
-                val newModel = model.copy(canTokens = model.canTokens + token)
                 val msg = effect.message(effect.type, effect.id, result)
-                return newModel to Maybe.Some(msg)
+                return { m ->
+                    val newModel = model.copy(canTokens = model.canTokens + token)
+                    newModel to Maybe.Some(msg)
+                }
             }
 
-            fun failure(error: Error): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
+            fun failure(error: Error): (RoboRioModel<TMessage, TModel>) -> Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
                 val result = Result.Error<CanDeviceToken, Error>(error)
-                return model to Maybe.Some(effect.message(effect.type, effect.id, result))
+                return { m -> m to Maybe.Some(effect.message(effect.type, effect.id, result)) }
             }
 
             when (effect.type) {
@@ -463,9 +477,9 @@ fun <TMessage, TModel> processEffect(
                     val motor = SparkMax(effect.id, SparkLowLevel.MotorType.kBrushless)
                     val connected = motor.lastError == REVLibError.kOk && !motor.firmwareString.isNullOrEmpty()
                     if (connected) {
-                        success(CanDeviceToken.MotorToken.NeoMotorToken(effect.id, motor))
+                        return success(CanDeviceToken.MotorToken.NeoMotorToken(effect.id, motor))
                     } else {
-                        failure(Error.RevError(effect.id, motor.lastError))
+                        return failure(Error.RevError(effect.id, motor.lastError))
                     }
                 }
 
@@ -473,9 +487,9 @@ fun <TMessage, TModel> processEffect(
                     val motor = TalonFX(effect.id)
                     val status = motor.deviceTemp.waitForUpdate(CANBUS_INIT_TIMEOUT_SECONDS).status
                     if (status.isOK) {
-                        success(CanDeviceToken.MotorToken.TalonMotorToken(effect.id, motor))
+                        return success(CanDeviceToken.MotorToken.TalonMotorToken(effect.id, motor))
                     } else {
-                        failure(Error.PhoenixError(effect.id, status))
+                        return failure(Error.PhoenixError(effect.id, status))
                     }
                 }
 
@@ -483,9 +497,9 @@ fun <TMessage, TModel> processEffect(
                     val encoder = CANcoder(effect.id)
                     val status = encoder.supplyVoltage.status
                     if (status.isOK) {
-                        success(CanDeviceToken.EncoderToken(effect.id, encoder))
+                        return success(CanDeviceToken.EncoderToken(effect.id, encoder))
                     } else {
-                        failure(Error.PhoenixError(effect.id, status))
+                        return failure(Error.PhoenixError(effect.id, status))
                     }
                 }
 
@@ -493,9 +507,9 @@ fun <TMessage, TModel> processEffect(
                     val pigeon = Pigeon2(effect.id)
                     val status = pigeon.supplyVoltage.status
                     if (status.isOK) {
-                        success(CanDeviceToken.PigeonToken(effect.id, pigeon))
+                        return success(CanDeviceToken.PigeonToken(effect.id, pigeon))
                     } else {
-                        failure(Error.PhoenixError(effect.id, status))
+                        return failure(Error.PhoenixError(effect.id, status))
                     }
                 }
             }
