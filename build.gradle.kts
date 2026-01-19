@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "1.9.0"
+    kotlin("jvm") version "2.1.0"
     id("maven-publish")
     id("edu.wpi.first.GradleRIO") version "2026.1.1"
     id("com.github.breadmoirai.github-release") version "2.5.2"
