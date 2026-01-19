@@ -8,16 +8,12 @@ import io.ktor.client.plugins.websocket.*
 import io.ktor.client.request.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.runBlocking
-import teaforge.platform.RoboRio.CanDeviceToken
-import teaforge.platform.RoboRio.CanDeviceType
 import teaforge.platform.RoboRio.DioPortState
 import teaforge.platform.RoboRio.HidValue
 import teaforge.platform.RoboRio.RunningRobotState
 import teaforge.platform.RoboRio.Subscription
 import teaforge.utils.Maybe
-import teaforge.utils.Result
 import teaforge.utils.map
-import teaforge.utils.unwrap
 
 sealed interface SubscriptionState<TMessage> {
     data class Interval<TMessage>(
@@ -81,6 +77,10 @@ sealed interface SubscriptionState<TMessage> {
         val lastReadTimeMicroseconds: Long,
     ) : SubscriptionState<TMessage>
 
+    data class TalonPosition<TMessage>(
+        val config: Subscription.TalonRotorPosition<TMessage>,
+        val lastReadTimeMicroseconds: Long,
+    ) : SubscriptionState<TMessage>
 }
 
 fun <TMessage, TModel> createDigitalPortValueState(
@@ -230,6 +230,18 @@ fun <TMessage, TModel> createPigeonValueState(
         ),
     )
 
+fun <TMessage, TModel> createTalonPositionValueState(
+    model: RoboRioModel<TMessage, TModel>,
+    config: Subscription.TalonRotorPosition<TMessage>,
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> =
+    Pair(
+        model,
+        SubscriptionState.TalonPosition(
+            config = config,
+            lastReadTimeMicroseconds = 0,
+        )
+    )
+
 fun <TMessage, TModel> createInterval(
     model: RoboRioModel<TMessage, TModel>,
     config: Subscription.Interval<TMessage>,
@@ -282,6 +294,7 @@ fun <TMessage, TModel> processSubscription(
         is SubscriptionState.PigeonValue -> runReadPigeon(model, subscriptionState)
         is SubscriptionState.Interval -> runReadInterval(model, subscriptionState)
         is SubscriptionState.WebSocket -> runReadWebSocket(model, subscriptionState)
+        is SubscriptionState.TalonPosition -> runReadTalonPosition(model, subscriptionState)
     }
 
 fun <TMessage, TModel> startSubscriptionHandler(
@@ -301,6 +314,7 @@ fun <TMessage, TModel> startSubscriptionHandler(
         is Subscription.PigeonValue -> createPigeonValueState(model, subscription)
         is Subscription.Interval -> createInterval(model, subscription)
         is Subscription.WebSocket -> createWebSocket(model, subscription)
+        is Subscription.TalonRotorPosition -> createTalonPositionValueState(model, subscription)
     }
 
 fun <TMessage, TModel> stopSubscriptionHandler(
@@ -317,7 +331,8 @@ fun <TMessage, TModel> stopSubscriptionHandler(
         is SubscriptionState.RobotState -> model
         is SubscriptionState.RobotStateChanged -> model
         is SubscriptionState.CANcoderValue -> model
-        is SubscriptionState.PigeonValue<*> -> model
+        is SubscriptionState.PigeonValue<*> -> model //TODO: why does only this have a star? question
+        is SubscriptionState.TalonPosition -> model
         is SubscriptionState.Interval -> model
         is SubscriptionState.WebSocket -> closeWebSocket(model, subscriptionState)
     }
@@ -451,6 +466,27 @@ fun <TMessage, TModel> runReadPigeon(
                     lastReadTimeMicroseconds = currentMicroseconds,
                 )
 
+            Triple(model, updatedState, Maybe.Some(state.config.message(newValue)))
+        } ?: Triple(model, state, Maybe.None)
+    } else {
+        Triple(model, state, Maybe.None)
+    }
+}
+
+fun <TMessage, TModel> runReadTalonPosition(
+    model: RoboRioModel<TMessage, TModel>,
+    state: SubscriptionState.TalonPosition<TMessage>,
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
+    val currentMicroseconds = HALUtil.getFPGATime()
+    val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
+    return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
+        //TODO: is this fine? getPosition isn't thread safe
+        val position = state.config.talon.device.getRotorPosition() //todo: or use getPostition()?
+        position.let { newValue ->
+            val updatedState =
+                state.copy(
+                    lastReadTimeMicroseconds = currentMicroseconds,
+                )
             Triple(model, updatedState, Maybe.Some(state.config.message(newValue)))
         } ?: Triple(model, state, Maybe.None)
     } else {

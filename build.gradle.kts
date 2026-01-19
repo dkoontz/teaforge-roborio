@@ -13,8 +13,10 @@ repositories {
     mavenCentral()
     flatDir { dirs("libs") }
 
+
     maven { url = uri("https://maven.ctr-electronics.com/release/") }
     maven { url = uri("https://maven.revrobotics.com/") }
+
 }
 
 dependencies {
@@ -22,11 +24,13 @@ dependencies {
 
     api(files("libs/teaforge-0.1.3.jar"))
 
+
     implementation("edu.wpi.first.wpinet:wpinet-java:2026.1.1")
     implementation("edu.wpi.first.wpilibj:wpilibj-java:2026.1.1")
     implementation("edu.wpi.first.wpiutil:wpiutil-java:2026.1.1")
     implementation("edu.wpi.first.hal:hal-java:2026.1.1")
     implementation("edu.wpi.first.wpimath:wpimath-java:2026.1.1")
+    implementation("edu.wpi.first.wpiunits:wpiunits-java:2026.1.1")
 
     implementation("com.ctre.phoenix6:wpiapi-java:26.1.0")
     implementation("com.ctre.phoenix:api-java:5.36.0")

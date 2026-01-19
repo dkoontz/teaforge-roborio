@@ -1,16 +1,13 @@
 package teaforge.platform.RoboRio
 
-import com.ctre.phoenix6.hardware.TalonFX
-import com.revrobotics.spark.SparkMax
+import com.ctre.phoenix6.StatusSignal
 import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
 import teaforge.platform.RoboRio.Subscription.*
-import teaforge.platform.RoboRio.internal.SubscriptionState
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
-import teaforge.utils.Maybe
 import teaforge.utils.Result
-import java.util.concurrent.CountDownLatch
+import edu.wpi.first.units.measure.Angle
 
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase =
@@ -198,7 +195,11 @@ sealed interface Subscription<out TMessage> {
         val message: (Rotation3d) -> TMessage,
     ) : Subscription<TMessage>
 
-
+    data class TalonRotorPosition<TMessage>(
+        val talon: CanDeviceToken.MotorToken.TalonMotorToken,
+        val millisecondsBetweenReads: Int,
+        val message: (StatusSignal<Angle>) -> TMessage,
+    ) : Subscription<TMessage>
 }
 
 /**
@@ -464,6 +465,13 @@ fun <TMessage, TNewMessage> mapSubscription(
             WebSocket(
                 url = subscription.url,
                 message = { info -> mapFunction(subscription.message(info)) }
+            )
+        }
+        is TalonRotorPosition -> {
+            TalonRotorPosition(
+                talon = subscription.talon,
+                millisecondsBetweenReads = subscription.millisecondsBetweenReads,
+                message = { positionSignal -> mapFunction(subscription.message(positionSignal)) }
             )
         }
          }
