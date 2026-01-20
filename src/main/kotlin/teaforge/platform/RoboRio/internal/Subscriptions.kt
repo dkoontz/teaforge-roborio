@@ -1,6 +1,8 @@
 package teaforge.platform.RoboRio.internal
 
+import com.ctre.phoenix6.StatusSignal
 import edu.wpi.first.hal.HALUtil
+import edu.wpi.first.units.measure.AngularVelocity
 import edu.wpi.first.wpilibj.GenericHID
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
@@ -14,6 +16,7 @@ import teaforge.platform.RoboRio.RunningRobotState
 import teaforge.platform.RoboRio.Subscription
 import teaforge.utils.Maybe
 import teaforge.utils.map
+import kotlin.math.PI
 
 sealed interface SubscriptionState<TMessage> {
     data class Interval<TMessage>(
@@ -78,7 +81,13 @@ sealed interface SubscriptionState<TMessage> {
     ) : SubscriptionState<TMessage>
 
     data class TalonPosition<TMessage>(
-        val config: Subscription.TalonRotorPosition<TMessage>,
+        val config: Subscription.TalonPosition<TMessage>,
+        val lastReadTimeMicroseconds: Long,
+    ) : SubscriptionState<TMessage>
+
+    data class TalonVelocity<TMessage>(
+        val pointer: StatusSignal<AngularVelocity>,
+        val config: Subscription.TalonVelocity<TMessage>,
         val lastReadTimeMicroseconds: Long,
     ) : SubscriptionState<TMessage>
 }
@@ -232,11 +241,24 @@ fun <TMessage, TModel> createPigeonValueState(
 
 fun <TMessage, TModel> createTalonPositionValueState(
     model: RoboRioModel<TMessage, TModel>,
-    config: Subscription.TalonRotorPosition<TMessage>,
+    config: Subscription.TalonPosition<TMessage>,
 ): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> =
     Pair(
         model,
         SubscriptionState.TalonPosition(
+            config = config,
+            lastReadTimeMicroseconds = 0,
+        )
+    )
+
+fun <TMessage, TModel> createTalonVelocityValueState(
+    model: RoboRioModel<TMessage, TModel>,
+    config: Subscription.TalonVelocity<TMessage>,
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> =
+    Pair(
+        model,
+        SubscriptionState.TalonVelocity(
+            pointer = config.talon.device.velocity,
             config = config,
             lastReadTimeMicroseconds = 0,
         )
@@ -295,6 +317,7 @@ fun <TMessage, TModel> processSubscription(
         is SubscriptionState.Interval -> runReadInterval(model, subscriptionState)
         is SubscriptionState.WebSocket -> runReadWebSocket(model, subscriptionState)
         is SubscriptionState.TalonPosition -> runReadTalonPosition(model, subscriptionState)
+        is SubscriptionState.TalonVelocity -> runReadTalonVelocity(model, subscriptionState)
     }
 
 fun <TMessage, TModel> startSubscriptionHandler(
@@ -314,7 +337,8 @@ fun <TMessage, TModel> startSubscriptionHandler(
         is Subscription.PigeonValue -> createPigeonValueState(model, subscription)
         is Subscription.Interval -> createInterval(model, subscription)
         is Subscription.WebSocket -> createWebSocket(model, subscription)
-        is Subscription.TalonRotorPosition -> createTalonPositionValueState(model, subscription)
+        is Subscription.TalonPosition -> createTalonPositionValueState(model, subscription)
+        is Subscription.TalonVelocity -> createTalonVelocityValueState(model, subscription)
     }
 
 fun <TMessage, TModel> stopSubscriptionHandler(
@@ -333,6 +357,7 @@ fun <TMessage, TModel> stopSubscriptionHandler(
         is SubscriptionState.CANcoderValue -> model
         is SubscriptionState.PigeonValue<*> -> model //TODO: why does only this have a star? question
         is SubscriptionState.TalonPosition -> model
+        is SubscriptionState.TalonVelocity -> model
         is SubscriptionState.Interval -> model
         is SubscriptionState.WebSocket -> closeWebSocket(model, subscriptionState)
     }
@@ -481,8 +506,31 @@ fun <TMessage, TModel> runReadTalonPosition(
     val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
     return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
         //TODO: is this fine? getPosition isn't thread safe
-        val position = state.config.talon.device.getRotorPosition() //todo: or use getPostition()?
+        val position = state.config.talon.device.rotorPosition //todo: or use getPostition()?
         position.let { newValue ->
+            val updatedState =
+                state.copy(
+                    lastReadTimeMicroseconds = currentMicroseconds,
+                )
+            Triple(model, updatedState, Maybe.Some(state.config.message(newValue)))
+        } ?: Triple(model, state, Maybe.None)
+    } else {
+        Triple(model, state, Maybe.None)
+    }
+}
+
+fun <TMessage, TModel> runReadTalonVelocity(
+    //todo: not thread safe - will it be a problem?
+    model: RoboRioModel<TMessage, TModel>,
+    state: SubscriptionState.TalonVelocity<TMessage>,
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
+    val currentMicroseconds = HALUtil.getFPGATime()
+    val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
+    return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
+        state.pointer.refresh() //todo: eventually change to waitForAll (whole drivetrain) and use getStatus?
+        val velocityMPS = state.pointer.valueAsDouble * PI * .1016 //4 inches; wheel diameter
+        //TODO: add timestamps
+        velocityMPS.let { newValue ->
             val updatedState =
                 state.copy(
                     lastReadTimeMicroseconds = currentMicroseconds,

@@ -2,6 +2,7 @@ package teaforge.platform.RoboRio.internal
 
 import com.ctre.phoenix6.CANBus
 import com.ctre.phoenix6.Orchestra
+import com.ctre.phoenix6.configs.TalonFXConfiguration
 import com.ctre.phoenix6.hardware.CANcoder
 import com.ctre.phoenix6.hardware.Pigeon2
 import com.ctre.phoenix6.hardware.TalonFX
@@ -504,7 +505,14 @@ fun <TMessage, TModel> processEffect(
 
             }
         }
-
+        is Effect.ConfigTalon -> {
+            val status = effect.talon.device.configurator.apply(effect.config) //applies config, waits for .1 seconds
+            if (status.isOK){
+                model to Maybe.Some(effect.message(effect.talon, Result.Success<TalonFXConfiguration, Error>(effect.config)))
+            } else {
+                model to Maybe.Some(effect.message(effect.talon, Result.Error<TalonFXConfiguration, Error>(Error.PhoenixError(effect.id, status))))
+            }
+        }
         is Effect.ForwardPort -> {
             if ((effect.port >= 1024u) and (!effect.remoteName.any{it in "\$_+!*'(),/?:@=&"})){
                 PortForwarder.add(effect.port.toInt(), effect.remoteName, effect.remotePort.toInt())

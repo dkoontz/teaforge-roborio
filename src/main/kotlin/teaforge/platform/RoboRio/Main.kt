@@ -1,13 +1,15 @@
 package teaforge.platform.RoboRio
 
 import com.ctre.phoenix6.StatusSignal
+import com.ctre.phoenix6.configs.TalonFXConfiguration
+import com.ctre.phoenix6.hardware.TalonFX
 import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
 import teaforge.platform.RoboRio.Subscription.*
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
 import teaforge.utils.Result
-import edu.wpi.first.units.measure.Angle
+import edu.wpi.first.units.measure.*
 
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase =
@@ -95,6 +97,15 @@ sealed interface Effect<out TMessage> {
             val message: ( Int, Result<CanDeviceToken, Error>) -> TMessage
         ) : InitCanDevice<TMessage>
     }
+
+    data class ConfigTalon<TMessage>(
+        val id: Int,
+        val talon: CanDeviceToken.MotorToken.TalonMotorToken,
+        val config: TalonFXConfiguration,
+        val message: ( CanDeviceToken.MotorToken.TalonMotorToken, Result<TalonFXConfiguration, Error>) -> TMessage
+    ) : Effect<TMessage>
+
+    //todo: make a swervepod config
 
     data class SetCanMotorSpeed(
         val motor: CanDeviceToken.MotorToken,
@@ -195,11 +206,20 @@ sealed interface Subscription<out TMessage> {
         val message: (Rotation3d) -> TMessage,
     ) : Subscription<TMessage>
 
-    data class TalonRotorPosition<TMessage>(
+    //todo: fix ts
+    data class TalonPosition<TMessage>( //returns the rotor position
         val talon: CanDeviceToken.MotorToken.TalonMotorToken,
         val millisecondsBetweenReads: Int,
         val message: (StatusSignal<Angle>) -> TMessage,
     ) : Subscription<TMessage>
+
+    data class TalonVelocity<TMessage>( //returns wheel speed in m/s (linear) (if gear reduction is configured correctly)
+        val talon: CanDeviceToken.MotorToken.TalonMotorToken,
+        val millisecondsBetweenReads: Int,
+        val message: (Double) -> TMessage
+    ) : Subscription<TMessage>
+
+    //todo: eventually make one for the entire drivetrain
 }
 
 /**
@@ -321,9 +341,15 @@ fun <TMessage, TNewMessage> mapEffect(
         is Effect.InitCanDevice.Pigeon ->
             Effect.InitCanDevice.Pigeon(
                 id = effect.id,
-                message = { deviceId, result -> mapFunction(effect.message( deviceId, result)) }
+                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) }
             )
-
+        is Effect.ConfigTalon ->
+            Effect.ConfigTalon(
+                id = effect.id,
+                talon = effect.talon,
+                config = effect.config,
+                message = { talonToken, result -> mapFunction(effect.message(talonToken, result)) },
+            )
         is Effect.SetCanMotorSpeed -> effect
         is Effect.ReadFile ->
             Effect.ReadFile(
@@ -467,11 +493,18 @@ fun <TMessage, TNewMessage> mapSubscription(
                 message = { info -> mapFunction(subscription.message(info)) }
             )
         }
-        is TalonRotorPosition -> {
-            TalonRotorPosition(
+        is TalonPosition -> {
+            TalonPosition(
                 talon = subscription.talon,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 message = { positionSignal -> mapFunction(subscription.message(positionSignal)) }
+            )
+        }
+        is TalonVelocity -> {
+            TalonVelocity(
+                talon = subscription.talon,
+                millisecondsBetweenReads = subscription.millisecondsBetweenReads,
+                message = { velocitySignal -> mapFunction(subscription.message(velocitySignal)) }
             )
         }
          }
