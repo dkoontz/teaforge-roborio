@@ -15,6 +15,12 @@ import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.DigitalOutput
 import edu.wpi.first.wpilibj.RobotState
 import edu.wpi.first.wpilibj.motorcontrol.Spark
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.webSocketSession
+import io.ktor.client.request.url
+import kotlinx.coroutines.runBlocking
 import teaforge.HistoryEntry
 import teaforge.ProgramRunnerConfig
 import teaforge.ProgramRunnerInstance
@@ -226,6 +232,17 @@ fun <TMessage, TModel> processEffect(
                     model to Maybe.Some(effect.message(result))
                 }
             }
+        }
+
+        is Effect.InitWebSocket -> {
+            val client = HttpClient(CIO) { install(WebSockets) }
+            val session = runBlocking {
+                client.webSocketSession { url(effect.url) }
+            }
+
+            val token = WebSocketToken(effect.url, client, session)
+
+            model to Maybe.Some(effect.message(token))
         }
 
         // TODO: PWM ports should be configurable to use a variety of motors, not just a Spark

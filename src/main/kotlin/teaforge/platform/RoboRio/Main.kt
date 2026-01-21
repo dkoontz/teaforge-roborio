@@ -41,6 +41,11 @@ sealed interface Effect<out TMessage> {
         val message: (Result<AnalogOutputToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
+    data class InitWebSocket<TMessage>(
+        val url: String,
+        val message: (WebSocketToken) -> TMessage,
+    ) : Effect<TMessage>
+
     data class SetDigitalPortState<TMessage>(
         val token: DigitalOutputToken,
         val value: DioPortState,
@@ -110,7 +115,7 @@ sealed interface Subscription<out TMessage> {
     ) : Subscription<TMessage>
 
     data class WebSocket<TMessage>(
-        val url: String,
+        val token: WebSocketToken,
         val message: (String) -> TMessage
     ) : Subscription<TMessage>
 
