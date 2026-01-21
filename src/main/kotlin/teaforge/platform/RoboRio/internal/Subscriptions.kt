@@ -72,6 +72,9 @@ sealed interface SubscriptionState<TMessage> {
     ) : SubscriptionState<TMessage>
 
     data class CANcoderValue<TMessage>(
+        val absolutePosPointer: StatusSignal<Angle>,
+        val relativePosPointer: StatusSignal<Angle>,
+        val velocityPointer: StatusSignal<AngularVelocity>,
         val config: Subscription.CANcoderValue<TMessage>,
         val lastReadTimeMicroseconds: Long,
     ) : SubscriptionState<TMessage>
@@ -224,6 +227,9 @@ fun <TMessage, TModel> createCANcoderValueState(
     Pair(
         model,
         SubscriptionState.CANcoderValue(
+            absolutePosPointer = config.token.device.absolutePosition,
+            relativePosPointer = config.token.device.positionSinceBoot,
+            velocityPointer = config.token.device.velocity,
             config = config,
             lastReadTimeMicroseconds = 0,
         ),
@@ -466,15 +472,23 @@ fun <TMessage, TModel> runReadCANcoder(
     val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
     return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
         val cancoder = state.config.token.device
-        val newValue = cancoder.absolutePosition.valueAsDouble
-        val normalized = newValue * 360
+        state.absolutePosPointer.refresh()
+        state.relativePosPointer.refresh()
+        state.velocityPointer.refresh()
+        val absolute = state.absolutePosPointer.valueAsDouble
+        val relative = cancoder.positionSinceBoot.valueAsDouble
+        val velocity = cancoder.velocity.valueAsDouble
+
+        val normalizedAbsolute = absolute * 360 //degrees
+        val normalizedRelative = relative * 360 //degrees
+        val normalizedVelocity = velocity * 2 * PI //radians per sec
 
         val updatedState =
             state.copy(
                 lastReadTimeMicroseconds = currentMicroseconds,
             )
-
-        Triple(model, updatedState, Maybe.Some(state.config.message(normalized)))
+                                                                            //TODO: how do i know these are in the right order
+        Triple(model, updatedState, Maybe.Some(state.config.message(normalizedAbsolute, normalizedRelative, normalizedVelocity)))
     } else {
         Triple(model, state, Maybe.None)
     }
@@ -510,7 +524,7 @@ fun <TMessage, TModel> runReadTalonPosition(
     return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
         //not thread safe, don't use in multiple threads
         state.pointer.refresh()
-        val position = state.config.talon.device.rotorPosition //# of rotations of WHEEL since start; resets then the robot is POWERED OFF (should)
+        val position = state.pointer.valueAsDouble //# of rotations of WHEEL since start; resets then the robot is POWERED OFF (should)
         position.let { newValue ->
             val updatedState =
                 state.copy(

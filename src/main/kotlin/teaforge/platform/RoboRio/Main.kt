@@ -1,6 +1,7 @@
 package teaforge.platform.RoboRio
 
 import com.ctre.phoenix6.StatusSignal
+import com.ctre.phoenix6.configs.CANcoderConfiguration
 import com.ctre.phoenix6.configs.TalonFXConfiguration
 import com.ctre.phoenix6.hardware.TalonFX
 import edu.wpi.first.math.geometry.Rotation3d
@@ -105,6 +106,13 @@ sealed interface Effect<out TMessage> {
         val message: ( CanDeviceToken.MotorToken.TalonMotorToken, Result<TalonFXConfiguration, Error>) -> TMessage
     ) : Effect<TMessage>
 
+    data class ConfigCANcoder<TMessage>(
+        val id: Int,
+        val cancoder: CanDeviceToken.EncoderToken,
+        val config: CANcoderConfiguration,
+        val message: ( CanDeviceToken.EncoderToken, Result<CANcoderConfiguration, Error>) -> TMessage
+    ) : Effect<TMessage>
+
     //todo: make a swervepod config
 
     data class SetCanMotorSpeed(
@@ -197,7 +205,7 @@ sealed interface Subscription<out TMessage> {
     data class CANcoderValue<TMessage>(
         val token: CanDeviceToken.EncoderToken,
         val millisecondsBetweenReads: Int,
-        val message: (Double) -> TMessage,
+        val message: (Double, Double, Double) -> TMessage,
     ) : Subscription<TMessage>
 
     data class PigeonValue<TMessage>(
@@ -209,7 +217,7 @@ sealed interface Subscription<out TMessage> {
     data class TalonPosition<TMessage>( //returns # of rotations of WHEEL
         val talon: CanDeviceToken.MotorToken.TalonMotorToken,
         val millisecondsBetweenReads: Int,
-        val message: (StatusSignal<Angle>) -> TMessage,
+        val message: (Double) -> TMessage,
     ) : Subscription<TMessage>
 
     data class TalonVelocity<TMessage>( //returns wheel speed in M/S (linear) (if gear reduction is configured correctly)
@@ -348,6 +356,13 @@ fun <TMessage, TNewMessage> mapEffect(
                 config = effect.config,
                 message = { talonToken, result -> mapFunction(effect.message(talonToken, result)) },
             )
+        is Effect.ConfigCANcoder ->
+            Effect.ConfigCANcoder(
+                id = effect.id,
+                cancoder = effect.cancoder,
+                config = effect.config,
+                message = { canToken, result -> mapFunction(effect.message(canToken, result)) },
+            )
         is Effect.SetCanMotorSpeed -> effect
         is Effect.ReadFile ->
             Effect.ReadFile(
@@ -477,7 +492,7 @@ fun <TMessage, TNewMessage> mapSubscription(
             CANcoderValue(
                 token = subscription.token,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
-                message = { value -> mapFunction(subscription.message(value)) },
+                message = { absolutePos, relativePos, velocity -> mapFunction(subscription.message(absolutePos, relativePos, velocity)) },
             )
         is PigeonValue ->
             PigeonValue(
