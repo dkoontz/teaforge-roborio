@@ -2,6 +2,7 @@ package teaforge.platform.RoboRio.internal
 
 import com.ctre.phoenix6.StatusSignal
 import edu.wpi.first.hal.HALUtil
+import edu.wpi.first.units.measure.Angle
 import edu.wpi.first.units.measure.AngularVelocity
 import edu.wpi.first.wpilibj.GenericHID
 import io.ktor.client.*
@@ -81,6 +82,7 @@ sealed interface SubscriptionState<TMessage> {
     ) : SubscriptionState<TMessage>
 
     data class TalonPosition<TMessage>(
+        val pointer: StatusSignal<Angle>,
         val config: Subscription.TalonPosition<TMessage>,
         val lastReadTimeMicroseconds: Long,
     ) : SubscriptionState<TMessage>
@@ -246,6 +248,7 @@ fun <TMessage, TModel> createTalonPositionValueState(
     Pair(
         model,
         SubscriptionState.TalonPosition(
+            pointer = config.talon.device.position,
             config = config,
             lastReadTimeMicroseconds = 0,
         )
@@ -505,8 +508,9 @@ fun <TMessage, TModel> runReadTalonPosition(
     val currentMicroseconds = HALUtil.getFPGATime()
     val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
     return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
-        //TODO: is this fine? getPosition isn't thread safe
-        val position = state.config.talon.device.rotorPosition //todo: or use getPostition()?
+        //not thread safe, don't use in multiple threads
+        state.pointer.refresh()
+        val position = state.config.talon.device.rotorPosition //# of rotations of WHEEL since start; resets then the robot is POWERED OFF (should)
         position.let { newValue ->
             val updatedState =
                 state.copy(
@@ -520,16 +524,15 @@ fun <TMessage, TModel> runReadTalonPosition(
 }
 
 fun <TMessage, TModel> runReadTalonVelocity(
-    //todo: not thread safe - will it be a problem?
+    //not thread safe, don't use in multiple threads
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.TalonVelocity<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
     val currentMicroseconds = HALUtil.getFPGATime()
     val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
     return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
-        state.pointer.refresh() //todo: eventually change to waitForAll (whole drivetrain) and use getStatus?
+        state.pointer.refresh() //todo: add checking status as well? (getStatus)
         val velocityMPS = state.pointer.valueAsDouble * PI * .1016 //4 inches; wheel diameter
-        //TODO: add timestamps
         velocityMPS.let { newValue ->
             val updatedState =
                 state.copy(

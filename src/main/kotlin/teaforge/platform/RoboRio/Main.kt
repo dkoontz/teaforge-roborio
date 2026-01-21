@@ -206,20 +206,18 @@ sealed interface Subscription<out TMessage> {
         val message: (Rotation3d) -> TMessage,
     ) : Subscription<TMessage>
 
-    //todo: fix ts
-    data class TalonPosition<TMessage>( //returns the rotor position
+    data class TalonPosition<TMessage>( //returns # of rotations of WHEEL
         val talon: CanDeviceToken.MotorToken.TalonMotorToken,
         val millisecondsBetweenReads: Int,
         val message: (StatusSignal<Angle>) -> TMessage,
     ) : Subscription<TMessage>
 
-    data class TalonVelocity<TMessage>( //returns wheel speed in m/s (linear) (if gear reduction is configured correctly)
+    data class TalonVelocity<TMessage>( //returns wheel speed in M/S (linear) (if gear reduction is configured correctly)
         val talon: CanDeviceToken.MotorToken.TalonMotorToken,
         val millisecondsBetweenReads: Int,
         val message: (Double) -> TMessage
     ) : Subscription<TMessage>
 
-    //todo: eventually make one for the entire drivetrain
 }
 
 /**
