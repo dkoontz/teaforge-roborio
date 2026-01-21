@@ -1,16 +1,14 @@
 package teaforge.platform.RoboRio
 
-import com.ctre.phoenix6.hardware.TalonFX
-import com.revrobotics.spark.SparkMax
 import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
+import teaforge.platform.RoboRio.Effect.*
+import teaforge.platform.RoboRio.Effect.InitCanDevice.*
+import teaforge.platform.RoboRio.Effect.InitCanDevice.InitMotor.*
 import teaforge.platform.RoboRio.Subscription.*
-import teaforge.platform.RoboRio.internal.SubscriptionState
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
-import teaforge.utils.Maybe
 import teaforge.utils.Result
-import java.util.concurrent.CountDownLatch
 
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase =
@@ -44,6 +42,11 @@ sealed interface Effect<out TMessage> {
         val port: AnalogPort,
         val initialVoltage: Double,
         val message: (Result<AnalogOutputToken, Error>) -> TMessage,
+    ) : Effect<TMessage>
+
+    data class InitWebSocket<TMessage>(
+        val url: String,
+        val message: (WebSocketToken) -> TMessage,
     ) : Effect<TMessage>
 
     data class SetDigitalPortState<TMessage>(
@@ -140,7 +143,7 @@ sealed interface Subscription<out TMessage> {
     ) : Subscription<TMessage>
 
     data class WebSocket<TMessage>(
-        val url: String,
+        val token: WebSocketToken,
         val message: (String) -> TMessage
     ) : Subscription<TMessage>
 
@@ -251,106 +254,112 @@ fun <TMessage, TNewMessage> mapEffect(
     when (effect) {
         is Effect.Log -> effect
         is Effect.InitDigitalPortForInput ->
-            Effect.InitDigitalPortForInput(
+            InitDigitalPortForInput(
                 port = effect.port,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.InitDigitalPortForOutput ->
-            Effect.InitDigitalPortForOutput(
+            InitDigitalPortForOutput(
                 port = effect.port,
                 initialValue = effect.initialValue,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.InitAnalogPortForInput ->
-            Effect.InitAnalogPortForInput(
+            InitAnalogPortForInput(
                 port = effect.port,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.InitAnalogPortForOutput ->
-            Effect.InitAnalogPortForOutput(
+            InitAnalogPortForOutput(
                 port = effect.port,
                 initialVoltage = effect.initialVoltage,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.SetDigitalPortState ->
-            Effect.SetDigitalPortState(
+            SetDigitalPortState(
                 token = effect.token,
                 value = effect.value,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.SetAnalogPortVoltage ->
-            Effect.SetAnalogPortVoltage(
+            SetAnalogPortVoltage(
                 token = effect.token,
                 voltage = effect.voltage,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.InitPwmPortForOutput ->
-            Effect.InitPwmPortForOutput(
+            InitPwmPortForOutput(
                 port = effect.port,
                 initialSpeed = effect.initialSpeed,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.SetPwmValue ->
-            Effect.SetPwmValue(
+            SetPwmValue(
                 token = effect.token,
                 value = effect.value,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.InitHidPortForInput ->
-            Effect.InitHidPortForInput(
+            InitHidPortForInput(
                 port = effect.port,
                 message = { result -> mapFunction(effect.message(result)) },
             )
 
         is Effect.InitCanDevice.InitMotor.Talon ->
-            Effect.InitCanDevice.InitMotor.Talon(
+            Talon(
                 id = effect.id,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )
         is Effect.InitCanDevice.InitMotor.Neo ->
-            Effect.InitCanDevice.InitMotor.Neo(
+            Neo(
                 id = effect.id,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) }
             )
         is Effect.InitCanDevice.Encoder ->
-            Effect.InitCanDevice.Encoder(
+            Encoder(
                 id = effect.id,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) }
             )
         is Effect.InitCanDevice.Pigeon ->
-            Effect.InitCanDevice.Pigeon(
+            Pigeon(
                 id = effect.id,
                 message = { deviceId, result -> mapFunction(effect.message( deviceId, result)) }
             )
 
         is Effect.SetCanMotorSpeed -> effect
         is Effect.ReadFile ->
-            Effect.ReadFile(
+            ReadFile(
                 path = effect.path,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.LoadSong ->
-            Effect.LoadSong(
+            LoadSong(
                 motor = effect.motor,
                 songData = effect.songData,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.PlaySong ->
-            Effect.PlaySong(
+            PlaySong(
                 token = effect.token,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.StopSong ->
-            Effect.StopSong(
+            StopSong(
                 token = effect.token,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.ForwardPort ->
-            Effect.ForwardPort(
+            ForwardPort(
                 port = effect.port,
                 remoteName = effect.remoteName,
                 remotePort = effect.remotePort,
                 message = { result -> mapFunction(effect.message(result)) }
+            )
+
+        is Effect.InitWebSocket ->
+            InitWebSocket(
+                url = effect.url,
+                message = { token -> mapFunction(effect.message(token)) }
             )
     }
 
@@ -462,7 +471,7 @@ fun <TMessage, TNewMessage> mapSubscription(
             )
         is WebSocket -> {
             WebSocket(
-                url = subscription.url,
+                token = subscription.token,
                 message = { info -> mapFunction(subscription.message(info)) }
             )
         }
