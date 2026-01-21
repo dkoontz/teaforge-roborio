@@ -1,7 +1,7 @@
 plugins {
     kotlin("jvm") version "1.9.0"
     id("maven-publish")
-    id("edu.wpi.first.GradleRIO") version "2026.1.1"
+    id("edu.wpi.first.GradleRIO") version "2026.2.1"
     id("com.github.breadmoirai.github-release") version "2.5.2"
 }
 
@@ -22,6 +22,7 @@ dependencies {
 
     api(files("libs/teaforge-0.1.3.jar"))
 
+    implementation("edu.wpi.first.wpinet:wpinet-java:2026.1.1")
     implementation("edu.wpi.first.wpilibj:wpilibj-java:2026.1.1")
     implementation("edu.wpi.first.wpiutil:wpiutil-java:2026.1.1")
     implementation("edu.wpi.first.hal:hal-java:2026.1.1")

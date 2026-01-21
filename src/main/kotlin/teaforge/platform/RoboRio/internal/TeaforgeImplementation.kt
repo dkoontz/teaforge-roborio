@@ -32,6 +32,8 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.*
 import kotlin.collections.Set
+import edu.wpi.first.net.PortForwarder
+
 
 val CANBUS_INIT_TIMEOUT_SECONDS = 1.0
 
@@ -463,58 +465,74 @@ fun <TMessage, TModel> processEffect(
 
         is Effect.InitCanDevice -> {
             // Local helpers for success and error cases
-            fun success(token: CanDeviceToken): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
+            fun success(token: CanDeviceToken, type: CanDeviceType, id: Int, message: ( Int, Result<CanDeviceToken, Error>) -> TMessage): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
                 val result = Result.Success<CanDeviceToken, Error>(token)
                 val newModel = model.copy(canTokens = model.canTokens + token)
-                val msg = effect.message(effect.type, effect.id, result)
+                val msg = message( id, result)
                 return newModel to Maybe.Some(msg)
             }
 
-            fun failure(error: Error): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
+            fun failure(error: Error, type: CanDeviceType, id: Int, message: ( Int, Result<CanDeviceToken, Error>) -> TMessage): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
                 val result = Result.Error<CanDeviceToken, Error>(error)
-                return model to Maybe.Some(effect.message(effect.type, effect.id, result))
+                return model to Maybe.Some(message( id, result))
             }
 
-            when (effect.type) {
-                CanDeviceType.Neo -> {
+            when (effect) {
+                is Effect.InitCanDevice.InitMotor.Neo -> {
                     val motor = SparkMax(effect.id, SparkLowLevel.MotorType.kBrushless)
                     val connected = motor.lastError == REVLibError.kOk && !motor.firmwareString.isNullOrEmpty()
                     if (connected) {
-                        success(CanDeviceToken.MotorToken.NeoMotorToken(effect.id, motor))
+                        success(CanDeviceToken.MotorToken.NeoMotorToken(effect.id, motor), CanDeviceType.Neo, effect.id, effect.message )
                     } else {
-                        failure(Error.RevError(effect.id, motor.lastError))
+                        failure(Error.RevError(effect.id, motor.lastError), CanDeviceType.Neo, effect.id, effect.message)
                     }
                 }
 
-                CanDeviceType.Talon -> {
+                is Effect.InitCanDevice.InitMotor.Talon -> {
                     val motor = TalonFX(effect.id)
                     val status = motor.deviceTemp.waitForUpdate(CANBUS_INIT_TIMEOUT_SECONDS).status
                     if (status.isOK) {
-                        success(CanDeviceToken.MotorToken.TalonMotorToken(effect.id, motor))
+                        success(CanDeviceToken.MotorToken.TalonMotorToken(effect.id, motor), CanDeviceType.Talon, effect.id, effect.message )
                     } else {
-                        failure(Error.PhoenixError(effect.id, status))
+                        failure(Error.PhoenixError(effect.id, status), CanDeviceType.Talon, effect.id, effect.message)
                     }
                 }
 
-                CanDeviceType.Encoder -> {
+                is Effect.InitCanDevice.Encoder -> {
                     val encoder = CANcoder(effect.id)
                     val status = encoder.supplyVoltage.status
                     if (status.isOK) {
-                        success(CanDeviceToken.EncoderToken(effect.id, encoder))
+                        success(CanDeviceToken.EncoderToken(effect.id, encoder), CanDeviceType.Encoder, effect.id, effect.message )
                     } else {
-                        failure(Error.PhoenixError(effect.id, status))
+                        failure(Error.PhoenixError(effect.id, status), CanDeviceType.Encoder, effect.id, effect.message)
                     }
                 }
 
-                CanDeviceType.Pigeon -> {
+                is Effect.InitCanDevice.Pigeon -> {
                     val pigeon = Pigeon2(effect.id)
                     val status = pigeon.supplyVoltage.status
                     if (status.isOK) {
-                        success(CanDeviceToken.PigeonToken(effect.id, pigeon))
+                        success(CanDeviceToken.PigeonToken(effect.id, pigeon), CanDeviceType.Pigeon, effect.id, effect.message )
                     } else {
-                        failure(Error.PhoenixError(effect.id, status))
+                        failure(Error.PhoenixError(effect.id, status), CanDeviceType.Pigeon, effect.id, effect.message)
                     }
                 }
+
+
+            }
+        }
+
+        is Effect.ForwardPort -> {
+            if ((effect.port >= 1024u) and (!effect.remoteName.any{it in "\$_+!*'(),/?:@=&"})){
+                PortForwarder.add(effect.port.toInt(), effect.remoteName, effect.remotePort.toInt())
+                val result = Result.Success<UShort, Error>(effect.port)
+                model to Maybe.Some(effect.message(result))
+            } else if (effect.port < 1024u) {
+                val result = Result.Error<UShort, Error>(Error.PortInitializationError(details = "Port number must be no less than 1024"))
+                model to Maybe.Some(effect.message(result))
+            } else{
+                val result = Result.Error<UShort, Error>(Error.PortInitializationError(details = "Invalid remote name (must be DNS or IP address)"))
+                model to Maybe.Some(effect.message(result))
             }
         }
     }

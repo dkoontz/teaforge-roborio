@@ -58,6 +58,9 @@ The RoboRio platform provides effects that allow you to initialize and control t
 - `PlaySong` - Play loaded music
 - `StopSong` - Stop playing music
 
+### Port Effects
+- `ForwardPort` - Forward local ports to another host or port
+
 ## Available Subscriptions
 
 The RoboRio platform provides subscriptions to receive data on an ongoing basis.
