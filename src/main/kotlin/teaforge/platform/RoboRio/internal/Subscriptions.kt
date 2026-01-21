@@ -1,6 +1,9 @@
 package teaforge.platform.RoboRio.internal
 
+import com.ctre.phoenix6.StatusSignal
 import edu.wpi.first.hal.HALUtil
+import edu.wpi.first.units.measure.Angle
+import edu.wpi.first.units.measure.AngularVelocity
 import edu.wpi.first.wpilibj.GenericHID
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
@@ -8,16 +11,13 @@ import io.ktor.client.plugins.websocket.*
 import io.ktor.client.request.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.runBlocking
-import teaforge.platform.RoboRio.CanDeviceToken
-import teaforge.platform.RoboRio.CanDeviceType
 import teaforge.platform.RoboRio.DioPortState
 import teaforge.platform.RoboRio.HidValue
 import teaforge.platform.RoboRio.RunningRobotState
 import teaforge.platform.RoboRio.Subscription
 import teaforge.utils.Maybe
-import teaforge.utils.Result
 import teaforge.utils.map
-import teaforge.utils.unwrap
+import kotlin.math.PI
 
 sealed interface SubscriptionState<TMessage> {
     data class Interval<TMessage>(
@@ -72,6 +72,9 @@ sealed interface SubscriptionState<TMessage> {
     ) : SubscriptionState<TMessage>
 
     data class CANcoderValue<TMessage>(
+        val absolutePosPointer: StatusSignal<Angle>,
+        val relativePosPointer: StatusSignal<Angle>,
+        val velocityPointer: StatusSignal<AngularVelocity>,
         val config: Subscription.CANcoderValue<TMessage>,
         val lastReadTimeMicroseconds: Long,
     ) : SubscriptionState<TMessage>
@@ -81,6 +84,17 @@ sealed interface SubscriptionState<TMessage> {
         val lastReadTimeMicroseconds: Long,
     ) : SubscriptionState<TMessage>
 
+    data class TalonPosition<TMessage>(
+        val pointer: StatusSignal<Angle>,
+        val config: Subscription.TalonPosition<TMessage>,
+        val lastReadTimeMicroseconds: Long,
+    ) : SubscriptionState<TMessage>
+
+    data class TalonVelocity<TMessage>(
+        val pointer: StatusSignal<AngularVelocity>,
+        val config: Subscription.TalonVelocity<TMessage>,
+        val lastReadTimeMicroseconds: Long,
+    ) : SubscriptionState<TMessage>
 }
 
 fun <TMessage, TModel> createDigitalPortValueState(
@@ -213,6 +227,9 @@ fun <TMessage, TModel> createCANcoderValueState(
     Pair(
         model,
         SubscriptionState.CANcoderValue(
+            absolutePosPointer = config.token.device.absolutePosition,
+            relativePosPointer = config.token.device.positionSinceBoot,
+            velocityPointer = config.token.device.velocity,
             config = config,
             lastReadTimeMicroseconds = 0,
         ),
@@ -228,6 +245,32 @@ fun <TMessage, TModel> createPigeonValueState(
             config = config,
             lastReadTimeMicroseconds = 0,
         ),
+    )
+
+fun <TMessage, TModel> createTalonPositionValueState(
+    model: RoboRioModel<TMessage, TModel>,
+    config: Subscription.TalonPosition<TMessage>,
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> =
+    Pair(
+        model,
+        SubscriptionState.TalonPosition(
+            pointer = config.talon.device.position,
+            config = config,
+            lastReadTimeMicroseconds = 0,
+        )
+    )
+
+fun <TMessage, TModel> createTalonVelocityValueState(
+    model: RoboRioModel<TMessage, TModel>,
+    config: Subscription.TalonVelocity<TMessage>,
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> =
+    Pair(
+        model,
+        SubscriptionState.TalonVelocity(
+            pointer = config.talon.device.velocity,
+            config = config,
+            lastReadTimeMicroseconds = 0,
+        )
     )
 
 fun <TMessage, TModel> createInterval(
@@ -282,6 +325,8 @@ fun <TMessage, TModel> processSubscription(
         is SubscriptionState.PigeonValue -> runReadPigeon(model, subscriptionState)
         is SubscriptionState.Interval -> runReadInterval(model, subscriptionState)
         is SubscriptionState.WebSocket -> runReadWebSocket(model, subscriptionState)
+        is SubscriptionState.TalonPosition -> runReadTalonPosition(model, subscriptionState)
+        is SubscriptionState.TalonVelocity -> runReadTalonVelocity(model, subscriptionState)
     }
 
 fun <TMessage, TModel> startSubscriptionHandler(
@@ -301,6 +346,8 @@ fun <TMessage, TModel> startSubscriptionHandler(
         is Subscription.PigeonValue -> createPigeonValueState(model, subscription)
         is Subscription.Interval -> createInterval(model, subscription)
         is Subscription.WebSocket -> createWebSocket(model, subscription)
+        is Subscription.TalonPosition -> createTalonPositionValueState(model, subscription)
+        is Subscription.TalonVelocity -> createTalonVelocityValueState(model, subscription)
     }
 
 fun <TMessage, TModel> stopSubscriptionHandler(
@@ -317,7 +364,9 @@ fun <TMessage, TModel> stopSubscriptionHandler(
         is SubscriptionState.RobotState -> model
         is SubscriptionState.RobotStateChanged -> model
         is SubscriptionState.CANcoderValue -> model
-        is SubscriptionState.PigeonValue<*> -> model
+        is SubscriptionState.PigeonValue<*> -> model //TODO: why does only this have a star? question
+        is SubscriptionState.TalonPosition -> model
+        is SubscriptionState.TalonVelocity -> model
         is SubscriptionState.Interval -> model
         is SubscriptionState.WebSocket -> closeWebSocket(model, subscriptionState)
     }
@@ -423,15 +472,23 @@ fun <TMessage, TModel> runReadCANcoder(
     val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
     return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
         val cancoder = state.config.token.device
-        val newValue = cancoder.absolutePosition.valueAsDouble
-        val normalized = newValue * 360
+        state.absolutePosPointer.refresh()
+        state.relativePosPointer.refresh()
+        state.velocityPointer.refresh()
+        val absolute = state.absolutePosPointer.valueAsDouble
+        val relative = cancoder.positionSinceBoot.valueAsDouble
+        val velocity = cancoder.velocity.valueAsDouble
+
+        val normalizedAbsolute = absolute * 360 //degrees
+        val normalizedRelative = relative * 360 //degrees
+        val normalizedVelocity = velocity * 2 * PI //radians per sec
 
         val updatedState =
             state.copy(
                 lastReadTimeMicroseconds = currentMicroseconds,
             )
-
-        Triple(model, updatedState, Maybe.Some(state.config.message(normalized)))
+                                                                            //TODO: how do i know these are in the right order
+        Triple(model, updatedState, Maybe.Some(state.config.message(normalizedAbsolute, normalizedRelative, normalizedVelocity)))
     } else {
         Triple(model, state, Maybe.None)
     }
@@ -451,6 +508,50 @@ fun <TMessage, TModel> runReadPigeon(
                     lastReadTimeMicroseconds = currentMicroseconds,
                 )
 
+            Triple(model, updatedState, Maybe.Some(state.config.message(newValue)))
+        } ?: Triple(model, state, Maybe.None)
+    } else {
+        Triple(model, state, Maybe.None)
+    }
+}
+
+fun <TMessage, TModel> runReadTalonPosition(
+    model: RoboRioModel<TMessage, TModel>,
+    state: SubscriptionState.TalonPosition<TMessage>,
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
+    val currentMicroseconds = HALUtil.getFPGATime()
+    val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
+    return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
+        //not thread safe, don't use in multiple threads
+        state.pointer.refresh()
+        val position = state.pointer.valueAsDouble //# of rotations of WHEEL since start; resets then the robot is POWERED OFF (should)
+        position.let { newValue ->
+            val updatedState =
+                state.copy(
+                    lastReadTimeMicroseconds = currentMicroseconds,
+                )
+            Triple(model, updatedState, Maybe.Some(state.config.message(newValue)))
+        } ?: Triple(model, state, Maybe.None)
+    } else {
+        Triple(model, state, Maybe.None)
+    }
+}
+
+fun <TMessage, TModel> runReadTalonVelocity(
+    //not thread safe, don't use in multiple threads
+    model: RoboRioModel<TMessage, TModel>,
+    state: SubscriptionState.TalonVelocity<TMessage>,
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
+    val currentMicroseconds = HALUtil.getFPGATime()
+    val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
+    return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
+        state.pointer.refresh() //todo: add checking status as well? (getStatus)
+        val velocityMPS = state.pointer.valueAsDouble * PI * .1016 //4 inches; wheel diameter
+        velocityMPS.let { newValue ->
+            val updatedState =
+                state.copy(
+                    lastReadTimeMicroseconds = currentMicroseconds,
+                )
             Triple(model, updatedState, Maybe.Some(state.config.message(newValue)))
         } ?: Triple(model, state, Maybe.None)
     } else {
