@@ -75,6 +75,11 @@ sealed class Error {
         val port: PwmPort,
         val details: String,
     ) : Error()
+
+    data class WebSocketInitializationError(
+        val uri: String,
+        val details: String
+    ) : Error()
 }
 
 enum class DioPort {

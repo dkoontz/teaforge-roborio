@@ -237,14 +237,25 @@ fun <TMessage, TModel> processEffect(
         }
 
         is Effect.InitWebSocket -> {
-            val client = HttpClient(CIO) { install(WebSockets) }
-            val session = runBlocking {
-                client.webSocketSession { url(effect.url) }
+            val result: Result<WebSocketToken, Error> = try {
+                val client = HttpClient(CIO) { install(WebSockets) }
+                val session = runBlocking {
+                    client.webSocketSession { url(effect.url) }
+                }
+
+                Result.Success(WebSocketToken(effect.url, client, session))
+            } catch (e: Exception) {
+
+                val exception = e.message ?: ""
+                Result.Error(Error.WebSocketInitializationError(
+                    uri = effect.url,
+                    details = exception
+                ))
+
             }
 
-            val token = WebSocketToken(effect.url, client, session)
 
-            model to Maybe.Some(effect.message(token))
+            model to Maybe.Some(effect.message(result))
         }
 
         // TODO: PWM ports should be configurable to use a variety of motors, not just a Spark
