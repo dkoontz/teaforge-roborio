@@ -1,6 +1,7 @@
 package teaforge.platform.RoboRio
 
 import com.ctre.phoenix6.StatusSignal
+import com.ctre.phoenix6.Timestamp
 import com.ctre.phoenix6.configs.CANcoderConfiguration
 import com.ctre.phoenix6.configs.TalonFXConfiguration
 import com.ctre.phoenix6.hardware.TalonFX
@@ -103,17 +104,15 @@ sealed interface Effect<out TMessage> {
         val id: Int,
         val talon: CanDeviceToken.MotorToken.TalonMotorToken,
         val config: TalonFXConfiguration,
-        val message: ( CanDeviceToken.MotorToken.TalonMotorToken, Result<TalonFXConfiguration, Error>) -> TMessage
+        val message: ( Result<TalonFXConfiguration, Error>) -> TMessage
     ) : Effect<TMessage>
 
     data class ConfigCANcoder<TMessage>(
         val id: Int,
         val cancoder: CanDeviceToken.EncoderToken,
         val config: CANcoderConfiguration,
-        val message: ( CanDeviceToken.EncoderToken, Result<CANcoderConfiguration, Error>) -> TMessage
+        val message: ( Result<CANcoderConfiguration, Error>) -> TMessage
     ) : Effect<TMessage>
-
-    //todo: make a swervepod config
 
     data class SetCanMotorSpeed(
         val motor: CanDeviceToken.MotorToken,
@@ -214,17 +213,13 @@ sealed interface Subscription<out TMessage> {
         val message: (Rotation3d) -> TMessage,
     ) : Subscription<TMessage>
 
-    data class TalonPosition<TMessage>( //returns # of rotations of WHEEL
+    data class TalonValue<TMessage>( //returns wheel speed in M/S (linear) (if gear reduction is configured correctly)
         val talon: CanDeviceToken.MotorToken.TalonMotorToken,
-        val millisecondsBetweenReads: Int,
-        val message: (Double) -> TMessage,
-    ) : Subscription<TMessage>
-
-    data class TalonVelocity<TMessage>( //returns wheel speed in M/S (linear) (if gear reduction is configured correctly)
-        val talon: CanDeviceToken.MotorToken.TalonMotorToken,
-        val millisecondsBetweenReads: Int,
-        val message: (Double) -> TMessage
-    ) : Subscription<TMessage>
+        val message: (CanDeviceSnapshot.TalonSnapshot) -> TMessage
+    ) : Subscription<TMessage> {
+        val initialVelocity: StatusSignal<AngularVelocity> get() = talon.device.velocity
+        val initialPosition: StatusSignal<Angle> get() = talon.device.position
+    }
 
 }
 
@@ -354,14 +349,14 @@ fun <TMessage, TNewMessage> mapEffect(
                 id = effect.id,
                 talon = effect.talon,
                 config = effect.config,
-                message = { talonToken, result -> mapFunction(effect.message(talonToken, result)) },
+                message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.ConfigCANcoder ->
             Effect.ConfigCANcoder(
                 id = effect.id,
                 cancoder = effect.cancoder,
                 config = effect.config,
-                message = { canToken, result -> mapFunction(effect.message(canToken, result)) },
+                message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.SetCanMotorSpeed -> effect
         is Effect.ReadFile ->
@@ -506,18 +501,10 @@ fun <TMessage, TNewMessage> mapSubscription(
                 message = { info -> mapFunction(subscription.message(info)) }
             )
         }
-        is TalonPosition -> {
-            TalonPosition(
+        is TalonValue -> {
+            TalonValue(
                 talon = subscription.talon,
-                millisecondsBetweenReads = subscription.millisecondsBetweenReads,
-                message = { positionSignal -> mapFunction(subscription.message(positionSignal)) }
+                message = { snapshot -> mapFunction(subscription.message(snapshot)) }
             )
         }
-        is TalonVelocity -> {
-            TalonVelocity(
-                talon = subscription.talon,
-                millisecondsBetweenReads = subscription.millisecondsBetweenReads,
-                message = { velocitySignal -> mapFunction(subscription.message(velocitySignal)) }
-            )
-        }
-         }
+    }

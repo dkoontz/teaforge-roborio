@@ -308,14 +308,14 @@ fun <TMessage, TModel> processEffect(
                 } else {
                     val result =
                         Result.Error<OrchestraToken, Error>(
-                            Error.PhoenixError(effect.motor.id, status),
+                            Error.PhoenixError.PhoenixInitializationError(effect.motor.id, status),
                         )
                     model to Maybe.Some(effect.message(result))
                 }
             } catch (e: Exception) {
                 val result =
                     Result.Error<OrchestraToken, Error>(
-                        Error.PhoenixError(effect.motor.id, com.ctre.phoenix6.StatusCode.GeneralError),
+                        Error.PhoenixError.PhoenixInitializationError(effect.motor.id, com.ctre.phoenix6.StatusCode.GeneralError),
                     )
                 model to Maybe.Some(effect.message(result))
             }
@@ -330,7 +330,7 @@ fun <TMessage, TModel> processEffect(
                 } else {
                     val result =
                         Result.Error<Unit, Error>(
-                            Error.PhoenixError(effect.token.motor.id, status),
+                            Error.PhoenixError.PhoenixInitializationError(effect.token.motor.id, status),
                         )
                     model to Maybe.Some(effect.message(result))
                 }
@@ -338,7 +338,7 @@ fun <TMessage, TModel> processEffect(
                 // TODO: We should be able to catch Phoenix specific errors here to give a better status
                 val result =
                     Result.Error<Unit, Error>(
-                        Error.PhoenixError(effect.token.motor.id, com.ctre.phoenix6.StatusCode.GeneralError),
+                        Error.PhoenixError.PhoenixInitializationError(effect.token.motor.id, com.ctre.phoenix6.StatusCode.GeneralError),
                     )
                 model to Maybe.Some(effect.message(result))
             }
@@ -354,7 +354,7 @@ fun <TMessage, TModel> processEffect(
                 } else {
                     val result =
                         Result.Error<Unit, Error>(
-                            Error.PhoenixError(effect.token.motor.id, status),
+                            Error.PhoenixError.PhoenixInitializationError(effect.token.motor.id, status),
                         )
                     model to Maybe.Some(effect.message(result))
                 }
@@ -362,7 +362,7 @@ fun <TMessage, TModel> processEffect(
                 // TODO: We should be able to catch Phoenix specific errors here to give a better status
                 val result =
                     Result.Error<Unit, Error>(
-                        Error.PhoenixError(effect.token.motor.id, com.ctre.phoenix6.StatusCode.GeneralError),
+                        Error.PhoenixError.PhoenixInitializationError(effect.token.motor.id, com.ctre.phoenix6.StatusCode.GeneralError),
                     )
                 model to Maybe.Some(effect.message(result))
             }
@@ -479,7 +479,7 @@ fun <TMessage, TModel> processEffect(
                     if (status.isOK) {
                         success(CanDeviceToken.MotorToken.TalonMotorToken(effect.id, motor), CanDeviceType.Talon, effect.id, effect.message )
                     } else {
-                        failure(Error.PhoenixError(effect.id, status), CanDeviceType.Talon, effect.id, effect.message)
+                        failure(Error.PhoenixError.PhoenixInitializationError(effect.id, status), CanDeviceType.Talon, effect.id, effect.message)
                     }
                 }
 
@@ -489,7 +489,7 @@ fun <TMessage, TModel> processEffect(
                     if (status.isOK) {
                         success(CanDeviceToken.EncoderToken(effect.id, encoder), CanDeviceType.Encoder, effect.id, effect.message )
                     } else {
-                        failure(Error.PhoenixError(effect.id, status), CanDeviceType.Encoder, effect.id, effect.message)
+                        failure(Error.PhoenixError.PhoenixInitializationError(effect.id, status), CanDeviceType.Encoder, effect.id, effect.message)
                     }
                 }
 
@@ -499,7 +499,7 @@ fun <TMessage, TModel> processEffect(
                     if (status.isOK) {
                         success(CanDeviceToken.PigeonToken(effect.id, pigeon), CanDeviceType.Pigeon, effect.id, effect.message )
                     } else {
-                        failure(Error.PhoenixError(effect.id, status), CanDeviceType.Pigeon, effect.id, effect.message)
+                        failure(Error.PhoenixError.PhoenixInitializationError(effect.id, status), CanDeviceType.Pigeon, effect.id, effect.message)
                     }
                 }
 
@@ -510,18 +510,18 @@ fun <TMessage, TModel> processEffect(
         is Effect.ConfigTalon -> {
             val status = effect.talon.device.configurator.apply(effect.config) //applies config, waits for .1 seconds
             if (status.isOK){
-                model to Maybe.Some(effect.message(effect.talon, Result.Success<TalonFXConfiguration, Error>(effect.config)))
+                model to Maybe.Some(effect.message(Result.Success<TalonFXConfiguration, Error>(effect.config)))
             } else {
-                model to Maybe.Some(effect.message(effect.talon, Result.Error<TalonFXConfiguration, Error>(Error.PhoenixError(effect.id, status))))
+                model to Maybe.Some(effect.message(Result.Error<TalonFXConfiguration, Error>(Error.PhoenixError.PhoenixInitializationError(effect.id, status))))
             }
         }
 
         is Effect.ConfigCANcoder -> {
             val status = effect.cancoder.device.configurator.apply(effect.config) //applies config, waits for .1 seconds
             if (status.isOK){
-                model to Maybe.Some(effect.message(effect.cancoder, Result.Success<CANcoderConfiguration, Error>(effect.config)))
+                model to Maybe.Some(effect.message(Result.Success<CANcoderConfiguration, Error>(effect.config)))
             } else {
-                model to Maybe.Some(effect.message(effect.cancoder, Result.Error<CANcoderConfiguration, Error>(Error.PhoenixError(effect.id, status))))
+                model to Maybe.Some(effect.message(Result.Error<CANcoderConfiguration, Error>(Error.PhoenixError.PhoenixInitializationError(effect.id, status))))
             }
         }
 
