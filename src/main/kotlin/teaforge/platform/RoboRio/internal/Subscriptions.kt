@@ -608,7 +608,7 @@ fun <TMessage, TModel> runReadTalonValue(
     return if (atLeastOneUpdated) {
         val newSnapshot = CanDeviceSnapshot.TalonSnapshot(
             position = SignalValue<Double>(
-                //since were returning both the timestamp and status in the message we can check if it's stale and its status(error) in the application layer
+                //since we're returning both the timestamp and status in the message we can check if it's stale and its status(error) in the application layer
                 value = positionSignal.valueAsDouble,
                 timestamp = currentPositionTimestamp,
                 status = positionSignal.status,
