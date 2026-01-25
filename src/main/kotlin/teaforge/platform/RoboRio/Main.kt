@@ -3,6 +3,7 @@ package teaforge.platform.RoboRio
 import com.ctre.phoenix6.StatusSignal
 import com.ctre.phoenix6.Timestamp
 import com.ctre.phoenix6.configs.CANcoderConfiguration
+import com.ctre.phoenix6.configs.Pigeon2Configuration
 import com.ctre.phoenix6.configs.TalonFXConfiguration
 import com.ctre.phoenix6.hardware.TalonFX
 import edu.wpi.first.math.geometry.Rotation3d
@@ -12,6 +13,7 @@ import teaforge.platform.RoboRio.Subscription.*
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
 import teaforge.utils.Result
 import edu.wpi.first.units.measure.*
+import jdk.jshell.Snippet
 
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase =
@@ -100,19 +102,25 @@ sealed interface Effect<out TMessage> {
         ) : InitCanDevice<TMessage>
     }
 
-    data class ConfigTalon<TMessage>(
-        val id: Int,
-        val talon: CanDeviceToken.MotorToken.TalonMotorToken,
-        val config: TalonFXConfiguration,
-        val message: ( Result<TalonFXConfiguration, Error>) -> TMessage
-    ) : Effect<TMessage>
+    sealed interface ConfigCanDevice<TMessage> : Effect<TMessage> {
+        data class Talon<TMessage>(
+            val talon: CanDeviceToken.MotorToken.TalonMotorToken,
+            val config: TalonFXConfiguration,
+            val message: (Result<CanDeviceToken.MotorToken.TalonMotorToken, Error>) -> TMessage
+        ) : ConfigCanDevice<TMessage>
 
-    data class ConfigCANcoder<TMessage>(
-        val id: Int,
-        val cancoder: CanDeviceToken.EncoderToken,
-        val config: CANcoderConfiguration,
-        val message: ( Result<CANcoderConfiguration, Error>) -> TMessage
-    ) : Effect<TMessage>
+        data class Encoder<TMessage>(
+            val cancoder: CanDeviceToken.EncoderToken,
+            val config: CANcoderConfiguration,
+            val message: (Result<CanDeviceToken.EncoderToken, Error>) -> TMessage
+        ) : ConfigCanDevice<TMessage>
+
+        data class Pigeon<TMessage>(
+            val pigeon: CanDeviceToken.PigeonToken,
+            val config: Pigeon2Configuration,
+            val message: (Result<CanDeviceToken.PigeonToken, Error>) -> TMessage
+        ) : ConfigCanDevice<TMessage>
+    }
 
     data class SetCanMotorSpeed(
         val motor: CanDeviceToken.MotorToken,
@@ -201,17 +209,27 @@ sealed interface Subscription<out TMessage> {
         val message: (RunningRobotState, RunningRobotState) -> TMessage,
     ) : Subscription<TMessage>
 
+    //todo: add flagging if signals are not OK for too long
     data class CANcoderValue<TMessage>(
-        val token: CanDeviceToken.EncoderToken,
-        val millisecondsBetweenReads: Int,
-        val message: (Double, Double, Double) -> TMessage,
-    ) : Subscription<TMessage>
+        val cancoder: CanDeviceToken.EncoderToken,
+        val message: (CanDeviceSnapshot.EncoderSnapshot) -> TMessage,
+    ) : Subscription<TMessage> {
+        val initialAbsolutePos: StatusSignal<Angle> get () = cancoder.device.absolutePosition
+        val initialRelativePos: StatusSignal<Angle> get() = cancoder.device.positionSinceBoot
+        val initialVelocity: StatusSignal<AngularVelocity> get() = cancoder.device.velocity
+    }
 
     data class PigeonValue<TMessage>(
         val pigeon: CanDeviceToken.PigeonToken,
-        val millisecondsBetweenReads: Int,
-        val message: (Rotation3d) -> TMessage,
-    ) : Subscription<TMessage>
+        val message: (CanDeviceSnapshot.PigeonSnapshot) -> TMessage,
+    ) : Subscription<TMessage> {
+        val initialOrientation3d: Rotation3d get() = pigeon.device.rotation3d
+        val initialHeadingRate: StatusSignal<AngularVelocity> get() = pigeon.device.angularVelocityZWorld
+        val initialYaw: StatusSignal<Angle> get () = pigeon.device.yaw
+        val initialPitch: StatusSignal<Angle> get () = pigeon.device.pitch
+        val initialRoll: StatusSignal<Angle> get () = pigeon.device.roll
+
+    }
 
     data class TalonValue<TMessage>( //returns wheel speed in M/S (linear) (if gear reduction is configured correctly)
         val talon: CanDeviceToken.MotorToken.TalonMotorToken,
@@ -344,19 +362,23 @@ fun <TMessage, TNewMessage> mapEffect(
                 id = effect.id,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) }
             )
-        is Effect.ConfigTalon ->
-            Effect.ConfigTalon(
-                id = effect.id,
+        is Effect.ConfigCanDevice.Talon ->
+            Effect.ConfigCanDevice.Talon(
                 talon = effect.talon,
                 config = effect.config,
-                message = { result -> mapFunction(effect.message(result)) },
+                message = { result -> mapFunction(effect.message(result))}
             )
-        is Effect.ConfigCANcoder ->
-            Effect.ConfigCANcoder(
-                id = effect.id,
+        is Effect.ConfigCanDevice.Encoder ->
+            Effect.ConfigCanDevice.Encoder(
                 cancoder = effect.cancoder,
                 config = effect.config,
-                message = { result -> mapFunction(effect.message(result)) },
+                message = { result -> mapFunction(effect.message(result)) }
+            )
+        is Effect.ConfigCanDevice.Pigeon ->
+            Effect.ConfigCanDevice.Pigeon(
+                pigeon = effect.pigeon,
+                config = effect.config,
+                message = { result -> mapFunction(effect.message(result))}
             )
         is Effect.SetCanMotorSpeed -> effect
         is Effect.ReadFile ->
@@ -485,26 +507,24 @@ fun <TMessage, TNewMessage> mapSubscription(
             )
         is CANcoderValue ->
             CANcoderValue(
-                token = subscription.token,
-                millisecondsBetweenReads = subscription.millisecondsBetweenReads,
-                message = { absolutePos, relativePos, velocity -> mapFunction(subscription.message(absolutePos, relativePos, velocity)) },
+                cancoder = subscription.cancoder,
+                message = { snapshot -> mapFunction(subscription.message(snapshot)) },
             )
         is PigeonValue ->
             PigeonValue(
                 pigeon = subscription.pigeon,
-                millisecondsBetweenReads = subscription.millisecondsBetweenReads,
-                message = { rotation -> mapFunction(subscription.message(rotation)) },
+                message = { snapshot -> mapFunction(subscription.message(snapshot)) },
             )
-        is WebSocket -> {
-            WebSocket(
-                url = subscription.url,
-                message = { info -> mapFunction(subscription.message(info)) }
-            )
-        }
         is TalonValue -> {
             TalonValue(
                 talon = subscription.talon,
                 message = { snapshot -> mapFunction(subscription.message(snapshot)) }
+            )
+        }
+        is WebSocket -> {
+            WebSocket(
+                url = subscription.url,
+                message = { info -> mapFunction(subscription.message(info)) }
             )
         }
     }

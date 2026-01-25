@@ -507,21 +507,33 @@ fun <TMessage, TModel> processEffect(
             }
         }
 
-        is Effect.ConfigTalon -> {
-            val status = effect.talon.device.configurator.apply(effect.config) //applies config, waits for .1 seconds
-            if (status.isOK){
-                model to Maybe.Some(effect.message(Result.Success<TalonFXConfiguration, Error>(effect.config)))
-            } else {
-                model to Maybe.Some(effect.message(Result.Error<TalonFXConfiguration, Error>(Error.PhoenixError.PhoenixInitializationError(effect.id, status))))
-            }
-        }
+        is Effect.ConfigCanDevice -> {
 
-        is Effect.ConfigCANcoder -> {
-            val status = effect.cancoder.device.configurator.apply(effect.config) //applies config, waits for .1 seconds
-            if (status.isOK){
-                model to Maybe.Some(effect.message(Result.Success<CANcoderConfiguration, Error>(effect.config)))
-            } else {
-                model to Maybe.Some(effect.message(Result.Error<CANcoderConfiguration, Error>(Error.PhoenixError.PhoenixInitializationError(effect.id, status))))
+            when (effect) {
+                is Effect.ConfigCanDevice.Talon -> {
+                    val status = effect.talon.device.configurator.apply(effect.config) //applies config, waits for .1 seconds
+                    if (status.isOK){
+                        model to Maybe.Some(effect.message(Result.Success<CanDeviceToken.MotorToken.TalonMotorToken, Error>(effect.talon)))
+                    } else {
+                        model to Maybe.Some(effect.message(Result.Error<CanDeviceToken.MotorToken.TalonMotorToken, Error>(Error.PhoenixError.PhoenixDeviceError(effect.talon, status))))
+                    }
+                }
+                is Effect.ConfigCanDevice.Encoder -> {
+                    val status = effect.cancoder.device.configurator.apply(effect.config) //applies config, waits for .1 seconds
+                    if (status.isOK){
+                        model to Maybe.Some(effect.message(Result.Success<CanDeviceToken.EncoderToken, Error>(effect.cancoder)))
+                    } else {
+                        model to Maybe.Some(effect.message(Result.Error<CanDeviceToken.EncoderToken, Error>(Error.PhoenixError.PhoenixDeviceError(effect.cancoder, status))))
+                    }
+                }
+                is Effect.ConfigCanDevice.Pigeon -> {
+                    val status = effect.pigeon.device.configurator.apply(effect.config) //applies config, waits for .1 seconds
+                    if (status.isOK){
+                        model to Maybe.Some(effect.message(Result.Success<CanDeviceToken.PigeonToken, Error>(effect.pigeon)))
+                    } else {
+                        model to Maybe.Some(effect.message(Result.Error<CanDeviceToken.PigeonToken, Error>(Error.PhoenixError.PhoenixDeviceError(effect.pigeon, status))))
+                    }
+                }
             }
         }
 
