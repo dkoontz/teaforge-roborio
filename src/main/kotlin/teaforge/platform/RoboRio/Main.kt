@@ -231,12 +231,12 @@ sealed interface Subscription<out TMessage> {
 
     }
 
-    data class TalonValue<TMessage>( //returns wheel speed in M/S (linear) (if gear reduction is configured correctly)
+    data class TalonValue<TMessage>(
         val talon: CanDeviceToken.MotorToken.TalonMotorToken,
         val message: (CanDeviceSnapshot.TalonSnapshot) -> TMessage
     ) : Subscription<TMessage> {
-        val initialVelocity: StatusSignal<AngularVelocity> get() = talon.device.velocity
-        val initialPosition: StatusSignal<Angle> get() = talon.device.position
+        val initialVelocity: StatusSignal<AngularVelocity> get() = talon.device.velocity //rotations of rotor per sec
+        val initialPosition: StatusSignal<Angle> get() = talon.device.position //rotations of rotor
     }
 
 }

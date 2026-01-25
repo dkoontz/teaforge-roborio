@@ -204,20 +204,20 @@ sealed interface GamepadButtonState {
 data class SignalValue<T>(
     val value: T,
     val timestamp: Timestamp,
-    val status : StatusCode,
+    val status: StatusCode,
 )
 
 sealed interface CanDeviceSnapshot {
     data class TalonSnapshot internal constructor (
         val position: SignalValue<Double>,
         val velocity: SignalValue<Double>,
-    )
+    ) : CanDeviceSnapshot
 
     data class EncoderSnapshot internal constructor (
         val absolutePos: SignalValue<Double>,
         val relativePos: SignalValue<Double>,
         val velocity: SignalValue<Double>,
-    )
+    ) : CanDeviceSnapshot
 
     data class PigeonSnapshot internal constructor (
         //it seems redundant but yaw, pitch, roll was included because pigeon.rotation3d gives no information whatsoever
@@ -228,7 +228,6 @@ sealed interface CanDeviceSnapshot {
         val yaw: SignalValue<Double>, //degrees, does not wrap around
         val pitch: SignalValue<Double>, //degrees, does not wrap around
         val roll: SignalValue<Double>, //degrees, does not wrap around
-
-    )
+    ) : CanDeviceSnapshot
 }
 

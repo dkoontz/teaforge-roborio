@@ -556,7 +556,7 @@ fun <TMessage, TModel> runReadPigeon(
 
     return if (atLeastOneUpdated) {
         val yawRadians = yawSignal.valueAsDouble * (PI / 180.0)
-        val pitchRadians =  pitchSignal.valueAsDouble * (PI / 180.0)
+        val pitchRadians = pitchSignal.valueAsDouble * (PI / 180.0)
         val rollRadians = rollSignal.valueAsDouble * (PI / 180.0)
 
         val newSnapshot = CanDeviceSnapshot.PigeonSnapshot(
@@ -621,8 +621,8 @@ fun <TMessage, TModel> runReadTalonValue(
         )
         val updatedState =
             state.copy(
-                 lastReadTalonValue = newSnapshot,
-                )
+                lastReadTalonValue = newSnapshot,
+            )
         Triple(model, updatedState, Maybe.Some(state.config.message(newSnapshot)))
     } else {
         Triple(model, state, Maybe.None)
