@@ -222,7 +222,7 @@ sealed interface CanDeviceSnapshot {
     data class PigeonSnapshot internal constructor (
         //it seems redundant but yaw, pitch, roll was included because pigeon.rotation3d gives no information whatsoever
         //other than the Rotation3d value, so the subscription looks at all the yaw,pitch,roll signals and returns
-        //the status & timestamp as long as with a Rotation3d object created manually.
+        //the status & timestamp along with a Rotation3d object created manually.
         val orientation3d: Rotation3d,
         val headingRate: SignalValue<Double>, //degrees per second
         val yaw: SignalValue<Double>, //degrees, does not wrap around
