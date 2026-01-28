@@ -21,7 +21,9 @@ import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.url
 import kotlinx.coroutines.runBlocking
+import teaforge.DebugLoggingConfig
 import teaforge.HistoryEntry
+import teaforge.LoggerStatus
 import teaforge.ProgramRunnerConfig
 import teaforge.ProgramRunnerInstance
 import teaforge.platform.RoboRio.*
@@ -29,14 +31,42 @@ import teaforge.platform.RoboRio.DigitalInputToken
 import teaforge.utils.Maybe
 import teaforge.utils.Result
 import java.io.File
+import java.io.FileWriter
 import java.io.IOException
 import java.nio.file.*
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import kotlin.collections.Set
 import edu.wpi.first.net.PortForwarder
 import teaforge.EffectResult
 
 
 val CANBUS_INIT_TIMEOUT_SECONDS = 1.0
+
+private fun createDebugLogger(): FileWriter {
+    val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss"))
+    val filename = "$timestamp-debug-log.jsonl"
+    return FileWriter(File(filename), true)
+}
+
+private val debugLogger: FileWriter by lazy { createDebugLogger() }
+
+private fun debugLog(logger: FileWriter, json: String) {
+    logger.write(json)
+    logger.write("\n")
+    logger.flush()
+}
+
+private fun getDebugTimestamp(): Long = HALUtil.getFPGATime()
+
+private fun createLoggerStatus(): LoggerStatus {
+    return LoggerStatus.Enabled(
+        DebugLoggingConfig(
+            getTimestamp = ::getDebugTimestamp,
+            log = { json -> debugLog(debugLogger, json) },
+        )
+    )
+}
 
 data class RoboRioModel<TMessage, TModel>(
     val messageHistory: List<HistoryEntry<TMessage, TModel>>,
@@ -79,6 +109,7 @@ fun <TMessage, TModel> createRoboRioRunner(
             processHistoryEntry = ::processHistoryEntry,
             startSubscription = ::startSubscriptionHandler,
             stopSubscription = ::stopSubscriptionHandler,
+            loggerStatus = ::createLoggerStatus,
         )
 
     return teaforge.platform.initRunner(
@@ -119,7 +150,7 @@ fun <TMessage, TModel> initRoboRioRunner(
 fun <TMessage, TModel> processEffect(
     model: RoboRioModel<TMessage, TModel>,
     effect: Effect<TMessage>,
-): EffectResult<TModel, TMessage> {
+): EffectResult<RoboRioModel<TMessage, TModel>, TMessage> {
     return when (effect) {
         is Effect.InitAnalogPortForInput -> {
             // Check if the analog port has already been initialized
@@ -258,7 +289,7 @@ fun <TMessage, TModel> processEffect(
                         ))
 
                     }
-                    { currentModel: TModel ->
+                    { currentModel: RoboRioModel<TMessage, TModel> ->
                         currentModel to Maybe.Some(effect.message(result))
                     }
 
@@ -320,7 +351,7 @@ fun <TMessage, TModel> processEffect(
 
         is Effect.Log -> {
             log(effect.msg)
-            Pair(model, Maybe.None)
+            EffectResult.Sync(model, Maybe.None)
         }
 
         is Effect.LoadSong -> {
@@ -484,16 +515,16 @@ fun <TMessage, TModel> processEffect(
 
         is Effect.InitCanDevice -> {
             // Local helpers for success and error cases
-            fun success(token: CanDeviceToken, type: CanDeviceType, id: Int, message: ( Int, Result<CanDeviceToken, Error>) -> TMessage): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
+            fun success(token: CanDeviceToken, type: CanDeviceType, id: Int, message: (Int, Result<CanDeviceToken, Error>) -> TMessage): EffectResult<RoboRioModel<TMessage, TModel>, TMessage> {
                 val result = Result.Success<CanDeviceToken, Error>(token)
                 val newModel = model.copy(canTokens = model.canTokens + token)
-                val msg = message( id, result)
-                return EffectResult.Sync(model, Maybe.Some(msg))
+                val msg = message(id, result)
+                return EffectResult.Sync(newModel, Maybe.Some(msg))
             }
 
-            fun failure(error: Error, type: CanDeviceType, id: Int, message: ( Int, Result<CanDeviceToken, Error>) -> TMessage): Pair<RoboRioModel<TMessage, TModel>, Maybe<TMessage>> {
+            fun failure(error: Error, type: CanDeviceType, id: Int, message: (Int, Result<CanDeviceToken, Error>) -> TMessage): EffectResult<RoboRioModel<TMessage, TModel>, TMessage> {
                 val result = Result.Error<CanDeviceToken, Error>(error)
-                return EffectResult.Sync(model, Maybe.Some(message( id, result)))
+                return EffectResult.Sync(model, Maybe.Some(message(id, result)))
             }
 
             when (effect) {
