@@ -541,7 +541,7 @@ fun <TMessage, TModel> runReadHidPortChanged(
     // Compare arrays to detect changes
     val hasChanged =
         !newValue.axisValues.contentEquals(state.lastReadValue.axisValues) ||
-            !newValue.buttonValues.contentEquals(state.lastReadValue.buttonValues)
+                !newValue.buttonValues.contentEquals(state.lastReadValue.buttonValues)
 
     return if (hasChanged) {
         val updatedState = state.copy(lastReadValue = newValue)

@@ -46,7 +46,7 @@ sealed interface Effect<out TMessage> {
 
     data class InitWebSocket<TMessage>(
         val url: String,
-        val message: (WebSocketToken) -> TMessage,
+        val message: (Result<WebSocketToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
     data class SetDigitalPortState<TMessage>(

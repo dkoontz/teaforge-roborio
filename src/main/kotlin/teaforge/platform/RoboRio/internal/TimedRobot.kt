@@ -1,10 +1,14 @@
 package teaforge.platform.RoboRio.internal
 
 import edu.wpi.first.wpilibj.TimedRobot
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import teaforge.ProgramRunnerInstance
 import teaforge.platform.RoboRio.Effect
 import teaforge.platform.RoboRio.RoboRioProgram
 import teaforge.platform.RoboRio.Subscription
+import kotlin.coroutines.CoroutineContext
 
 class TimedRobotBasedPlatform<TMessage, TModel>(val program: RoboRioProgram<TMessage, TModel>) :
     TimedRobot() {
@@ -19,6 +23,8 @@ class TimedRobotBasedPlatform<TMessage, TModel>(val program: RoboRioProgram<TMes
                     SubscriptionState<TMessage>>? =
         null
 
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+
     override fun robotInit() {
         val roboRioArgs = listOf<String>()
         val programArgs = listOf<String>()
@@ -26,7 +32,7 @@ class TimedRobotBasedPlatform<TMessage, TModel>(val program: RoboRioProgram<TMes
     }
 
     override fun robotPeriodic() {
-        runner = runner?.let { teaforge.platform.stepProgram(it) }
+        runner = runner?.let { teaforge.platform.stepProgram(it, scope) }
     }
 
     override fun disabledInit() {}
