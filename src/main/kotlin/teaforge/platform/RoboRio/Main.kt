@@ -223,8 +223,9 @@ sealed interface Subscription<out TMessage> {
         val pigeon: CanDeviceToken.PigeonToken,
         val message: (CanDeviceSnapshot.PigeonSnapshot) -> TMessage,
     ) : Subscription<TMessage> {
-        val initialOrientation3d: Rotation3d get() = pigeon.device.rotation3d
-        val initialHeadingRate: StatusSignal<AngularVelocity> get() = pigeon.device.angularVelocityZWorld
+        val initialYawRate: StatusSignal<AngularVelocity> get() = pigeon.device.angularVelocityZWorld
+        val initialPitchRate: StatusSignal<AngularVelocity> get() = pigeon.device.angularVelocityYWorld
+        val initialRollRate: StatusSignal<AngularVelocity> get() = pigeon.device.angularVelocityXWorld
         val initialYaw: StatusSignal<Angle> get () = pigeon.device.yaw
         val initialPitch: StatusSignal<Angle> get () = pigeon.device.pitch
         val initialRoll: StatusSignal<Angle> get () = pigeon.device.roll

@@ -254,11 +254,20 @@ fun <TMessage, TModel> createPigeonValueState(
         SubscriptionState.PigeonValue(
             config = config,
             lastReadPigeonValue = CanDeviceSnapshot.PigeonSnapshot(
-                orientation3d = config.initialOrientation3d,
-                headingRate = SignalValue(
-                    value = config.initialHeadingRate.valueAsDouble,
-                    timestamp = config.initialHeadingRate.timestamp,
-                    status = config.initialHeadingRate.status,
+                yawRate = SignalValue(
+                    value = config.initialYawRate.valueAsDouble,
+                    timestamp = config.initialYawRate.timestamp,
+                    status = config.initialYawRate.status,
+                ),
+                pitchRate = SignalValue(
+                    value = config.initialPitchRate.valueAsDouble,
+                    timestamp = config.initialPitchRate.timestamp,
+                    status = config.initialPitchRate.status,
+                ),
+                rollRate = SignalValue(
+                    value = config.initialRollRate.valueAsDouble,
+                    timestamp = config.initialRollRate.timestamp,
+                    status = config.initialRollRate.status,
                 ),
                 yaw = SignalValue(
                     value = config.initialYaw.valueAsDouble,
@@ -539,45 +548,56 @@ fun <TMessage, TModel> runReadPigeon(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.PigeonValue<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
-    val headingRateSignal = state.config.pigeon.device.angularVelocityZWorld
+    val yawRateSignal = state.config.pigeon.device.angularVelocityZWorld
+    val pitchRateSignal = state.config.pigeon.device.angularVelocityYWorld
+    val rollRateSignal = state.config.pigeon.device.angularVelocityXWorld
     val yawSignal = state.config.pigeon.device.yaw
     val pitchSignal = state.config.pigeon.device.pitch
     val rollSignal = state.config.pigeon.device.roll
 
-    val currentHeadingRateTimestamp = headingRateSignal.timestamp
+    val currentYawRateTimestamp = yawRateSignal.timestamp
+    val currentPitchRateTimestamp = pitchRateSignal.timestamp
+    val currentRollRateTimestamp = rollRateSignal.timestamp
     val currentYawTimestamp = yawSignal.timestamp
     val currentPitchTimestamp = pitchSignal.timestamp
     val currentRollTimestamp = rollSignal.timestamp
 
-    val atLeastOneUpdated = !(currentHeadingRateTimestamp.equals(state.lastReadPigeonValue.headingRate.timestamp) &&
+    val atLeastOneUpdated = !(currentYawRateTimestamp.equals(state.lastReadPigeonValue.yawRate.timestamp) &&
+                            currentPitchRateTimestamp.equals(state.lastReadPigeonValue.pitchRate.timestamp) &&
+                            currentRollRateTimestamp.equals(state.lastReadPigeonValue.rollRate.timestamp) &&
                             currentYawTimestamp.equals(state.lastReadPigeonValue.yaw.timestamp) &&
                             currentPitchTimestamp.equals(state.lastReadPigeonValue.pitch.timestamp) &&
                             currentRollTimestamp.equals(state.lastReadPigeonValue.roll.timestamp))
 
     return if (atLeastOneUpdated) {
-        val yawRadians = yawSignal.valueAsDouble * (PI / 180.0)
-        val pitchRadians = pitchSignal.valueAsDouble * (PI / 180.0)
-        val rollRadians = rollSignal.valueAsDouble * (PI / 180.0)
-
         val newSnapshot = CanDeviceSnapshot.PigeonSnapshot(
-                orientation3d = Rotation3d(rollRadians, pitchRadians, yawRadians), //Rotation3d takes in radians
-                headingRate = SignalValue(
-                    value = headingRateSignal.valueAsDouble,
-                    timestamp = headingRateSignal.timestamp,
-                    status = headingRateSignal.status,
+                yawRate = SignalValue(
+                    value = yawRateSignal.valueAsDouble/360,
+                    timestamp = yawRateSignal.timestamp,
+                    status = yawRateSignal.status,
+                ),
+                pitchRate = SignalValue(
+                    value = pitchRateSignal.valueAsDouble/360,
+                    timestamp = pitchRateSignal.timestamp,
+                    status = pitchRateSignal.status,
+                ),
+                rollRate = SignalValue(
+                    value = rollRateSignal.valueAsDouble/360,
+                    timestamp = rollRateSignal.timestamp,
+                    status = rollRateSignal.status,
                 ),
                 yaw = SignalValue(
-                    value = yawSignal.valueAsDouble,
+                    value = yawSignal.valueAsDouble/360,
                     timestamp = yawSignal.timestamp,
                     status = yawSignal.status,
                 ),
                 pitch = SignalValue(
-                    value = pitchSignal.valueAsDouble,
+                    value = pitchSignal.valueAsDouble/360,
                     timestamp = pitchSignal.timestamp,
                     status = pitchSignal.status,
                 ),
                 roll = SignalValue(
-                    value = rollSignal.valueAsDouble,
+                    value = rollSignal.valueAsDouble/360,
                     timestamp = rollSignal.timestamp,
                     status = rollSignal.status,
                 ),
