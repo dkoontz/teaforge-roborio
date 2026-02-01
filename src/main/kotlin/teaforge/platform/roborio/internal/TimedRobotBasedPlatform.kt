@@ -1,14 +1,13 @@
-package teaforge.platform.RoboRio.internal
+package teaforge.platform.roborio.internal
 
 import edu.wpi.first.wpilibj.TimedRobot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import teaforge.ProgramRunnerInstance
-import teaforge.platform.RoboRio.Effect
-import teaforge.platform.RoboRio.RoboRioProgramConfig
-import teaforge.platform.RoboRio.Subscription
-import kotlin.coroutines.CoroutineContext
+import teaforge.platform.roborio.Effect
+import teaforge.platform.roborio.RoboRioProgramConfig
+import teaforge.platform.roborio.Subscription
 
 class TimedRobotBasedPlatform<TMessage, TModel>(
     val config: RoboRioProgramConfig<TMessage, TModel>,
@@ -21,7 +20,7 @@ class TimedRobotBasedPlatform<TMessage, TModel>(
             RoboRioModel<TMessage, TModel>,
             Subscription<TMessage>,
             SubscriptionState<TMessage>,
-        >? =
+            >? =
         null
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())

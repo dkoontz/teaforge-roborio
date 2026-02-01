@@ -1,4 +1,4 @@
-package teaforge.platform.RoboRio
+package teaforge.platform.roborio
 
 import com.ctre.phoenix6.StatusCode
 import com.ctre.phoenix6.hardware.CANcoder
@@ -78,7 +78,7 @@ sealed class Error {
 
     data class WebSocketInitializationError(
         val uri: String,
-        val details: String
+        val details: String,
     ) : Error()
 }
 
@@ -152,7 +152,7 @@ data class OrchestraToken internal constructor(
 data class WebSocketToken internal constructor(
     val url: String,
     val client: HttpClient,
-    val session: DefaultClientWebSocketSession
+    val session: DefaultClientWebSocketSession,
 )
 
 enum class DioPortState {

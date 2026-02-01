@@ -1,4 +1,4 @@
-package teaforge.platform.RoboRio.internal
+package teaforge.platform.roborio.internal
 
 import com.ctre.phoenix6.CANBus
 import com.ctre.phoenix6.Orchestra
@@ -15,31 +15,50 @@ import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.AnalogOutput
 import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.DigitalOutput
-import edu.wpi.first.wpilibj.RobotState
 import edu.wpi.first.wpilibj.motorcontrol.Spark
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.url
-import kotlinx.coroutines.runBlocking
 import teaforge.DebugLoggingConfig
 import teaforge.EffectResult
 import teaforge.HistoryEntry
 import teaforge.LoggerStatus
 import teaforge.ProgramRunnerConfig
 import teaforge.ProgramRunnerInstance
-import teaforge.platform.RoboRio.*
-import teaforge.platform.RoboRio.DigitalInputToken
+import teaforge.platform.roborio.AnalogInputToken
+import teaforge.platform.roborio.AnalogOutputToken
+import teaforge.platform.roborio.AnalogPort
+import teaforge.platform.roborio.CanDeviceToken
+import teaforge.platform.roborio.DebugLogging
+import teaforge.platform.roborio.DigitalInputToken
+import teaforge.platform.roborio.DigitalOutputToken
+import teaforge.platform.roborio.DioPort
+import teaforge.platform.roborio.DioPortState
+import teaforge.platform.roborio.Effect
+import teaforge.platform.roborio.Error
+import teaforge.platform.roborio.HidInputToken
+import teaforge.platform.roborio.OrchestraToken
+import teaforge.platform.roborio.PwmOutputToken
+import teaforge.platform.roborio.PwmPort
+import teaforge.platform.roborio.RoboRioProgram
+import teaforge.platform.roborio.Subscription
+import teaforge.platform.roborio.WebSocketToken
 import teaforge.utils.Maybe
 import teaforge.utils.Result
 import java.io.File
 import java.io.FileWriter
 import java.io.IOException
-import java.nio.file.*
+import java.nio.file.AccessDeniedException
+import java.nio.file.FileSystemException
+import java.nio.file.Files
+import java.nio.file.InvalidPathException
+import java.nio.file.NoSuchFileException
+import java.nio.file.Path
+import java.nio.file.Paths
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import kotlin.collections.Set
 
 val CANBUS_INIT_TIMEOUT_SECONDS = 1.0
 
@@ -47,13 +66,14 @@ private fun createLoggerStatus(debugLogging: DebugLogging): LoggerStatus {
     return when (debugLogging) {
         is DebugLogging.Disabled -> LoggerStatus.Disabled
         is DebugLogging.Enabled -> {
-            val filename = when (debugLogging.logFile) {
-                is DebugLogging.LogFile.Default -> {
-                    val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss"))
-                    "$timestamp-debug-log.jsonl"
+            val filename =
+                when (debugLogging.logFile) {
+                    is DebugLogging.LogFile.Default -> {
+                        val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss"))
+                        "$timestamp-debug-log.jsonl"
+                    }
+                    is DebugLogging.LogFile.Path -> debugLogging.logFile.path
                 }
-                is DebugLogging.LogFile.Path -> debugLogging.logFile.path
-            }
             val fileWriter = FileWriter(File(filename), true)
 
             LoggerStatus.Enabled(
@@ -94,7 +114,7 @@ fun <TMessage, TModel> createRoboRioRunner(
     RoboRioModel<TMessage, TModel>,
     Subscription<TMessage>,
     SubscriptionState<TMessage>,
-> {
+    > {
     val loggerStatus = createLoggerStatus(debugLogging)
 
     val runnerConfig:
@@ -105,7 +125,7 @@ fun <TMessage, TModel> createRoboRioRunner(
             RoboRioModel<TMessage, TModel>,
             Subscription<TMessage>,
             SubscriptionState<TMessage>,
-        > =
+            > =
         ProgramRunnerConfig(
             initRunner = ::initRoboRioRunner,
             processEffect = ::processEffect,
@@ -133,7 +153,8 @@ fun <TMessage, TModel> endOfUpdateCycle(model: RoboRioModel<TMessage, TModel>): 
 fun <TMessage, TModel> processHistoryEntry(
     roboRioModel: RoboRioModel<TMessage, TModel>,
     @Suppress("UNUSED_PARAMETER") event: HistoryEntry<TMessage, TModel>,
-): RoboRioModel<TMessage, TModel> = roboRioModel // .copy(messageHistory = roboRioModel.messageHistory + event) TODO implement debugger
+): RoboRioModel<TMessage, TModel> =
+    roboRioModel // .copy(messageHistory = roboRioModel.messageHistory + event) TODO implement debugger
 
 fun <TMessage, TModel> initRoboRioRunner(
     @Suppress("UNUSED_PARAMETER") args: List<String>,
@@ -588,7 +609,10 @@ fun <TMessage, TModel> processEffect(
                 val result = Result.Success<UShort, Error>(effect.port)
                 EffectResult.Sync(model, Maybe.Some(effect.message(result)))
             } else if (effect.port < 1024u) {
-                val result = Result.Error<UShort, Error>(Error.PortInitializationError(details = "Port number must be no less than 1024"))
+                val result =
+                    Result.Error<UShort, Error>(
+                        Error.PortInitializationError(details = "Port number must be no less than 1024"),
+                    )
                 EffectResult.Sync(model, Maybe.Some(effect.message(result)))
             } else {
                 val result =

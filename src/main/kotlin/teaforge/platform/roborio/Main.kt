@@ -1,13 +1,40 @@
-package teaforge.platform.RoboRio
+package teaforge.platform.roborio
 
 import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
-import teaforge.platform.RoboRio.Effect.*
-import teaforge.platform.RoboRio.Effect.InitCanDevice.*
-import teaforge.platform.RoboRio.Effect.InitCanDevice.InitMotor.*
-import teaforge.platform.RoboRio.Subscription.*
-import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
+import teaforge.platform.roborio.Effect.ForwardPort
+import teaforge.platform.roborio.Effect.InitAnalogPortForInput
+import teaforge.platform.roborio.Effect.InitAnalogPortForOutput
+import teaforge.platform.roborio.Effect.InitCanDevice.Encoder
+import teaforge.platform.roborio.Effect.InitCanDevice.InitMotor.Neo
+import teaforge.platform.roborio.Effect.InitCanDevice.InitMotor.Talon
+import teaforge.platform.roborio.Effect.InitCanDevice.Pigeon
+import teaforge.platform.roborio.Effect.InitDigitalPortForInput
+import teaforge.platform.roborio.Effect.InitDigitalPortForOutput
+import teaforge.platform.roborio.Effect.InitHidPortForInput
+import teaforge.platform.roborio.Effect.InitPwmPortForOutput
+import teaforge.platform.roborio.Effect.InitWebSocket
+import teaforge.platform.roborio.Effect.LoadSong
+import teaforge.platform.roborio.Effect.PlaySong
+import teaforge.platform.roborio.Effect.ReadFile
+import teaforge.platform.roborio.Effect.SetAnalogPortVoltage
+import teaforge.platform.roborio.Effect.SetDigitalPortState
+import teaforge.platform.roborio.Effect.SetPwmValue
+import teaforge.platform.roborio.Effect.StopSong
+import teaforge.platform.roborio.Subscription.AnalogPortValue
+import teaforge.platform.roborio.Subscription.AnalogPortValueChanged
+import teaforge.platform.roborio.Subscription.CANcoderValue
+import teaforge.platform.roborio.Subscription.DigitalPortValue
+import teaforge.platform.roborio.Subscription.DigitalPortValueChanged
+import teaforge.platform.roborio.Subscription.HidPortValue
+import teaforge.platform.roborio.Subscription.HidPortValueChanged
+import teaforge.platform.roborio.Subscription.Interval
+import teaforge.platform.roborio.Subscription.PigeonValue
+import teaforge.platform.roborio.Subscription.RobotState
+import teaforge.platform.roborio.Subscription.RobotStateChanged
+import teaforge.platform.roborio.Subscription.WebSocket
+import teaforge.platform.roborio.internal.TimedRobotBasedPlatform
 import teaforge.utils.Result
 
 fun <TMessage, TModel> timedRobotProgram(config: RoboRioProgramConfig<TMessage, TModel>): RobotBase =

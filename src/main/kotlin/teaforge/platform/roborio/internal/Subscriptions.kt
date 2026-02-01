@@ -1,23 +1,20 @@
-package teaforge.platform.RoboRio.internal
+package teaforge.platform.roborio.internal
 
 import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.wpilibj.GenericHID
-import io.ktor.client.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.plugins.websocket.*
-import io.ktor.client.request.*
-import io.ktor.websocket.*
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.websocket.ClientWebSocketSession
+import io.ktor.websocket.CloseReason
+import io.ktor.websocket.Frame
+import io.ktor.websocket.close
+import io.ktor.websocket.readText
 import kotlinx.coroutines.runBlocking
-import teaforge.platform.RoboRio.CanDeviceToken
-import teaforge.platform.RoboRio.CanDeviceType
-import teaforge.platform.RoboRio.DioPortState
-import teaforge.platform.RoboRio.HidValue
-import teaforge.platform.RoboRio.RunningRobotState
-import teaforge.platform.RoboRio.Subscription
+import teaforge.platform.roborio.DioPortState
+import teaforge.platform.roborio.HidValue
+import teaforge.platform.roborio.RunningRobotState
+import teaforge.platform.roborio.Subscription
 import teaforge.utils.Maybe
-import teaforge.utils.Result
 import teaforge.utils.map
-import teaforge.utils.unwrap
 
 sealed interface SubscriptionState<TMessage> {
     data class Interval<TMessage>(
@@ -80,7 +77,6 @@ sealed interface SubscriptionState<TMessage> {
         val config: Subscription.PigeonValue<TMessage>,
         val lastReadTimeMicroseconds: Long,
     ) : SubscriptionState<TMessage>
-
 }
 
 fun <TMessage, TModel> createDigitalPortValueState(
@@ -244,7 +240,8 @@ fun <TMessage, TModel> createInterval(
     )
 }
 
-fun <TMessage, TModel> createWebSocket( // BLOCKING
+// BLOCKING
+fun <TMessage, TModel> createWebSocket(
     model: RoboRioModel<TMessage, TModel>,
     config: Subscription.WebSocket<TMessage>,
 ): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
@@ -253,12 +250,10 @@ fun <TMessage, TModel> createWebSocket( // BLOCKING
         SubscriptionState.WebSocket(
             config = config,
             session = config.token.session,
-            client = config.token.client
+            client = config.token.client,
         ),
     )
 }
-
-
 
 fun <TMessage, TModel> processSubscription(
     model: RoboRioModel<TMessage, TModel>,
@@ -478,9 +473,10 @@ fun <TMessage, TModel> runReadWebSocket(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.WebSocket<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
-    val read: Maybe<String> = state.session.incoming.tryReceive().getOrNull()?.let { frame ->
-        (frame as? Frame.Text)?.let{ Maybe.Some(it.readText()) } ?: Maybe.None
-    } ?: Maybe.None
+    val read: Maybe<String> =
+        state.session.incoming.tryReceive().getOrNull()?.let { frame ->
+            (frame as? Frame.Text)?.let { Maybe.Some(it.readText()) } ?: Maybe.None
+        } ?: Maybe.None
 
     val message: Maybe<TMessage> = read.map { state.config.message(it) }
 
@@ -541,7 +537,7 @@ fun <TMessage, TModel> runReadHidPortChanged(
     // Compare arrays to detect changes
     val hasChanged =
         !newValue.axisValues.contentEquals(state.lastReadValue.axisValues) ||
-                !newValue.buttonValues.contentEquals(state.lastReadValue.buttonValues)
+            !newValue.buttonValues.contentEquals(state.lastReadValue.buttonValues)
 
     return if (hasChanged) {
         val updatedState = state.copy(lastReadValue = newValue)
@@ -554,7 +550,7 @@ fun <TMessage, TModel> runReadHidPortChanged(
 fun <TMessage, TModel> closeWebSocket(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.WebSocket<TMessage>,
-) : RoboRioModel<TMessage, TModel> {
+): RoboRioModel<TMessage, TModel> {
     runBlocking {
         state.session.close(CloseReason(CloseReason.Codes.NORMAL, "End Program"))
     }

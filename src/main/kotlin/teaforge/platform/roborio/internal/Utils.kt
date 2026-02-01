@@ -1,13 +1,13 @@
-package teaforge.platform.RoboRio.internal
+package teaforge.platform.roborio.internal
 
 import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.RobotState
-import teaforge.platform.RoboRio.AnalogPort
-import teaforge.platform.RoboRio.DioPort
-import teaforge.platform.RoboRio.DioPortState
-import teaforge.platform.RoboRio.PwmPort
-import teaforge.platform.RoboRio.RunningRobotState
+import teaforge.platform.roborio.AnalogPort
+import teaforge.platform.roborio.DioPort
+import teaforge.platform.roborio.DioPortState
+import teaforge.platform.roborio.PwmPort
+import teaforge.platform.roborio.RunningRobotState
 
 internal fun digitalIoPortToInt(port: DioPort): Int {
     return when (port) {
