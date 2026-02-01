@@ -7,7 +7,7 @@ plugins {
 
 project.group = "io.github.dkoontz"
 
-project.version = "0.1.5"
+project.version = "0.1.6"
 
 repositories {
     mavenCentral()
@@ -20,7 +20,7 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib"))
 
-    api(files("libs/teaforge-0.1.5.jar"))
+    api(files("libs/teaforge-0.1.6.jar"))
 
     implementation("edu.wpi.first.wpinet:wpinet-java:2026.1.1")
     implementation("edu.wpi.first.wpilibj:wpilibj-java:2026.1.1")

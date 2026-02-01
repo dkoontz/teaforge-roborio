@@ -10,6 +10,7 @@ import com.revrobotics.REVLibError
 import com.revrobotics.spark.SparkLowLevel
 import com.revrobotics.spark.SparkMax
 import edu.wpi.first.hal.HALUtil
+import edu.wpi.first.net.PortForwarder
 import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.AnalogOutput
 import edu.wpi.first.wpilibj.DigitalInput
@@ -22,7 +23,10 @@ import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.url
 import kotlinx.coroutines.runBlocking
+import teaforge.DebugLoggingConfig
+import teaforge.EffectResult
 import teaforge.HistoryEntry
+import teaforge.LoggerStatus
 import teaforge.ProgramRunnerConfig
 import teaforge.ProgramRunnerInstance
 import teaforge.platform.RoboRio.*
@@ -30,14 +34,42 @@ import teaforge.platform.RoboRio.DigitalInputToken
 import teaforge.utils.Maybe
 import teaforge.utils.Result
 import java.io.File
+import java.io.FileWriter
 import java.io.IOException
 import java.nio.file.*
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import kotlin.collections.Set
-import edu.wpi.first.net.PortForwarder
-import teaforge.EffectResult
-
 
 val CANBUS_INIT_TIMEOUT_SECONDS = 1.0
+
+private fun createLoggerStatus(debugLogging: DebugLogging): LoggerStatus {
+    return when (debugLogging) {
+        is DebugLogging.Disabled -> LoggerStatus.Disabled
+        is DebugLogging.Enabled -> {
+            val filename = when (debugLogging.logFile) {
+                is DebugLogging.LogFile.Default -> {
+                    val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss"))
+                    "$timestamp-debug-log.jsonl"
+                }
+                is DebugLogging.LogFile.Path -> debugLogging.logFile.path
+            }
+            val fileWriter = FileWriter(File(filename), true)
+
+            LoggerStatus.Enabled(
+                DebugLoggingConfig(
+                    getTimestamp = { HALUtil.getFPGATime() },
+                    log = { json ->
+                        fileWriter.write(json)
+                        fileWriter.write("\n")
+                        fileWriter.flush()
+                    },
+                    compressionEnabled = debugLogging.compression,
+                ),
+            )
+        }
+    }
+}
 
 data class RoboRioModel<TMessage, TModel>(
     val messageHistory: List<HistoryEntry<TMessage, TModel>>,
@@ -52,25 +84,28 @@ data class RoboRioModel<TMessage, TModel>(
 
 fun <TMessage, TModel> createRoboRioRunner(
     program: RoboRioProgram<TMessage, TModel>,
+    debugLogging: DebugLogging,
     roboRioArgs: List<String>,
     programArgs: List<String>,
 ): ProgramRunnerInstance<
-        Effect<TMessage>,
-        TMessage,
-        TModel,
-        RoboRioModel<TMessage, TModel>,
-        Subscription<TMessage>,
-        SubscriptionState<TMessage>,
-        > {
+    Effect<TMessage>,
+    TMessage,
+    TModel,
+    RoboRioModel<TMessage, TModel>,
+    Subscription<TMessage>,
+    SubscriptionState<TMessage>,
+> {
+    val loggerStatus = createLoggerStatus(debugLogging)
+
     val runnerConfig:
-            ProgramRunnerConfig<
-                    Effect<TMessage>,
-                    TMessage,
-                    TModel,
-                    RoboRioModel<TMessage, TModel>,
-                    Subscription<TMessage>,
-                    SubscriptionState<TMessage>,
-                    > =
+        ProgramRunnerConfig<
+            Effect<TMessage>,
+            TMessage,
+            TModel,
+            RoboRioModel<TMessage, TModel>,
+            Subscription<TMessage>,
+            SubscriptionState<TMessage>,
+        > =
         ProgramRunnerConfig(
             initRunner = ::initRoboRioRunner,
             processEffect = ::processEffect,
@@ -80,6 +115,7 @@ fun <TMessage, TModel> createRoboRioRunner(
             processHistoryEntry = ::processHistoryEntry,
             startSubscription = ::startSubscriptionHandler,
             stopSubscription = ::stopSubscriptionHandler,
+            loggerStatus = { loggerStatus },
         )
 
     return teaforge.platform.initRunner(
@@ -96,8 +132,8 @@ fun <TMessage, TModel> endOfUpdateCycle(model: RoboRioModel<TMessage, TModel>): 
 
 fun <TMessage, TModel> processHistoryEntry(
     roboRioModel: RoboRioModel<TMessage, TModel>,
-    event: HistoryEntry<TMessage, TModel>,
-): RoboRioModel<TMessage, TModel> = roboRioModel//.copy(messageHistory = roboRioModel.messageHistory + event) TODO implement debugger
+    @Suppress("UNUSED_PARAMETER") event: HistoryEntry<TMessage, TModel>,
+): RoboRioModel<TMessage, TModel> = roboRioModel // .copy(messageHistory = roboRioModel.messageHistory + event) TODO implement debugger
 
 fun <TMessage, TModel> initRoboRioRunner(
     @Suppress("UNUSED_PARAMETER") args: List<String>,
@@ -149,6 +185,7 @@ fun <TMessage, TModel> processEffect(
                 }
             }
         }
+
         is Effect.InitAnalogPortForOutput -> {
             // Check if the analog port has already been initialized
             val alreadyInitialized = model.analogOutputTokens.any { it.port == effect.port }
@@ -242,26 +279,25 @@ fun <TMessage, TModel> processEffect(
             EffectResult.Async(
                 updatedModel = model,
                 completion = {
+                    val result: Result<WebSocketToken, Error> =
+                        try {
+                            val client = HttpClient(CIO) { install(WebSockets) }
+                            val session = client.webSocketSession { url(effect.url) }
 
-                    val result: Result<WebSocketToken, Error> = try {
-                        val client = HttpClient(CIO) { install(WebSockets) }
-                        val session = client.webSocketSession { url(effect.url) }
-
-                        Result.Success(WebSocketToken(effect.url, client, session))
-                    } catch (e: Exception) {
-
-                        val exception = e.message ?: ""
-                        Result.Error(Error.WebSocketInitializationError(
-                            uri = effect.url,
-                            details = exception
-                        ))
-
-                    }
-                    { currentModel ->
+                            Result.Success(WebSocketToken(effect.url, client, session))
+                        } catch (e: Exception) {
+                            val exception = e.message ?: ""
+                            Result.Error(
+                                Error.WebSocketInitializationError(
+                                    uri = effect.url,
+                                    details = exception,
+                                ),
+                            )
+                        }
+                    { currentModel: RoboRioModel<TMessage, TModel> ->
                         currentModel to Maybe.Some(effect.message(result))
                     }
-
-                }
+                },
             )
         }
 
@@ -483,16 +519,24 @@ fun <TMessage, TModel> processEffect(
 
         is Effect.InitCanDevice -> {
             // Local helpers for success and error cases
-            fun success(token: CanDeviceToken, type: CanDeviceType, id: Int, message: ( Int, Result<CanDeviceToken, Error>) -> TMessage): EffectResult<RoboRioModel<TMessage, TModel>, TMessage> {
+            fun success(
+                token: CanDeviceToken,
+                id: Int,
+                message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
+            ): EffectResult<RoboRioModel<TMessage, TModel>, TMessage> {
                 val result = Result.Success<CanDeviceToken, Error>(token)
                 val newModel = model.copy(canTokens = model.canTokens + token)
-                val msg = message( id, result)
+                val msg = message(id, result)
                 return EffectResult.Sync(newModel, Maybe.Some(msg))
             }
 
-            fun failure(error: Error, type: CanDeviceType, id: Int, message: ( Int, Result<CanDeviceToken, Error>) -> TMessage): EffectResult<RoboRioModel<TMessage, TModel>, TMessage> {
+            fun failure(
+                error: Error,
+                id: Int,
+                message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
+            ): EffectResult<RoboRioModel<TMessage, TModel>, TMessage> {
                 val result = Result.Error<CanDeviceToken, Error>(error)
-                return EffectResult.Sync(model, Maybe.Some(message( id, result)))
+                return EffectResult.Sync(model, Maybe.Some(message(id, result)))
             }
 
             when (effect) {
@@ -500,9 +544,9 @@ fun <TMessage, TModel> processEffect(
                     val motor = SparkMax(effect.id, SparkLowLevel.MotorType.kBrushless)
                     val connected = motor.lastError == REVLibError.kOk && !motor.firmwareString.isNullOrEmpty()
                     if (connected) {
-                        success(CanDeviceToken.MotorToken.NeoMotorToken(effect.id, motor), CanDeviceType.Neo, effect.id, effect.message )
+                        success(CanDeviceToken.MotorToken.NeoMotorToken(effect.id, motor), effect.id, effect.message)
                     } else {
-                        failure(Error.RevError(effect.id, motor.lastError), CanDeviceType.Neo, effect.id, effect.message)
+                        failure(Error.RevError(effect.id, motor.lastError), effect.id, effect.message)
                     }
                 }
 
@@ -510,9 +554,9 @@ fun <TMessage, TModel> processEffect(
                     val motor = TalonFX(effect.id)
                     val status = motor.deviceTemp.waitForUpdate(CANBUS_INIT_TIMEOUT_SECONDS).status
                     if (status.isOK) {
-                        success(CanDeviceToken.MotorToken.TalonMotorToken(effect.id, motor), CanDeviceType.Talon, effect.id, effect.message )
+                        success(CanDeviceToken.MotorToken.TalonMotorToken(effect.id, motor), effect.id, effect.message)
                     } else {
-                        failure(Error.PhoenixError(effect.id, status), CanDeviceType.Talon, effect.id, effect.message)
+                        failure(Error.PhoenixError(effect.id, status), effect.id, effect.message)
                     }
                 }
 
@@ -520,9 +564,9 @@ fun <TMessage, TModel> processEffect(
                     val encoder = CANcoder(effect.id)
                     val status = encoder.supplyVoltage.status
                     if (status.isOK) {
-                        success(CanDeviceToken.EncoderToken(effect.id, encoder), CanDeviceType.Encoder, effect.id, effect.message )
+                        success(CanDeviceToken.EncoderToken(effect.id, encoder), effect.id, effect.message)
                     } else {
-                        failure(Error.PhoenixError(effect.id, status), CanDeviceType.Encoder, effect.id, effect.message)
+                        failure(Error.PhoenixError(effect.id, status), effect.id, effect.message)
                     }
                 }
 
@@ -530,26 +574,27 @@ fun <TMessage, TModel> processEffect(
                     val pigeon = Pigeon2(effect.id)
                     val status = pigeon.supplyVoltage.status
                     if (status.isOK) {
-                        success(CanDeviceToken.PigeonToken(effect.id, pigeon), CanDeviceType.Pigeon, effect.id, effect.message )
+                        success(CanDeviceToken.PigeonToken(effect.id, pigeon), effect.id, effect.message)
                     } else {
-                        failure(Error.PhoenixError(effect.id, status), CanDeviceType.Pigeon, effect.id, effect.message)
+                        failure(Error.PhoenixError(effect.id, status), effect.id, effect.message)
                     }
                 }
-
-
             }
         }
 
         is Effect.ForwardPort -> {
-            if ((effect.port >= 1024u) and (!effect.remoteName.any{it in "\$_+!*'(),/?:@=&"})){
+            if ((effect.port >= 1024u) and (!effect.remoteName.any { it in "\$_+!*'(),/?:@=&" })) {
                 PortForwarder.add(effect.port.toInt(), effect.remoteName, effect.remotePort.toInt())
                 val result = Result.Success<UShort, Error>(effect.port)
                 EffectResult.Sync(model, Maybe.Some(effect.message(result)))
             } else if (effect.port < 1024u) {
                 val result = Result.Error<UShort, Error>(Error.PortInitializationError(details = "Port number must be no less than 1024"))
                 EffectResult.Sync(model, Maybe.Some(effect.message(result)))
-            } else{
-                val result = Result.Error<UShort, Error>(Error.PortInitializationError(details = "Invalid remote name (must be DNS or IP address)"))
+            } else {
+                val result =
+                    Result.Error<UShort, Error>(
+                        Error.PortInitializationError(details = "Invalid remote name (must be DNS or IP address)"),
+                    )
                 EffectResult.Sync(model, Maybe.Some(effect.message(result)))
             }
         }
