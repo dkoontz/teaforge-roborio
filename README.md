@@ -373,6 +373,8 @@ In your `Main.kt` file, connect your robot program to the WPILib entry point:
 package frc.robot
 
 import edu.wpi.first.wpilibj.RobotBase
+import teaforge.platform.RoboRio.DebugLogging
+import teaforge.platform.RoboRio.RoboRioProgramConfig
 import teaforge.platform.RoboRio.timedRobotProgram
 
 object Main {
@@ -380,11 +382,77 @@ object Main {
     fun main(args: Array<String>) {
         RobotBase.startRobot {
             // This connects your Teaforge robot program to the WPILib framework
-            teaforge.platform.RoboRio.timedRobotProgram(robotProgram)
+            teaforge.platform.RoboRio.timedRobotProgram(
+                RoboRioProgramConfig(
+                    program = robotProgram,
+                    debugLogging = DebugLogging.Disabled,
+                )
+            )
         }
     }
 }
 ```
+
+## Debug Logging
+
+The RoboRio platform supports debug logging to capture program state for analysis. Debug logging is configured via the `debugLogging` parameter in `RoboRioProgramConfig`.
+
+### DebugLogging Type
+
+```kotlin
+sealed interface DebugLogging {
+    data object Disabled : DebugLogging
+
+    data class Enabled(
+        val compression: Boolean,
+        val logFile: LogFile,
+    ) : DebugLogging
+
+    sealed interface LogFile {
+        data object Default : LogFile
+        data class Path(val path: String) : LogFile
+    }
+}
+```
+
+### Configuration Options
+
+**Disabled**: No debug logging occurs.
+
+```kotlin
+RoboRioProgramConfig(
+    program = robotProgram,
+    debugLogging = DebugLogging.Disabled,
+)
+```
+
+**Enabled with default file naming**: Log files are named with a timestamp (e.g., `2025-01-31_14.30.00-debug-log.jsonl`).
+
+```kotlin
+RoboRioProgramConfig(
+    program = robotProgram,
+    debugLogging = DebugLogging.Enabled(
+        compression = false,
+        logFile = DebugLogging.LogFile.Default,
+    ),
+)
+```
+
+**Enabled with custom file path**: Specify an exact path for the log file.
+
+```kotlin
+RoboRioProgramConfig(
+    program = robotProgram,
+    debugLogging = DebugLogging.Enabled(
+        compression = true,
+        logFile = DebugLogging.LogFile.Path("/home/lvuser/debug.jsonl"),
+    ),
+)
+```
+
+### Compression
+
+When `compression` is set to `true`, the debug logs use LZ78-style dictionary compression to reduce file size. Repeated strings are replaced with references, which is useful for large log files with repetitive data structures.
 
 ## Understanding the Token System Workflow
 
