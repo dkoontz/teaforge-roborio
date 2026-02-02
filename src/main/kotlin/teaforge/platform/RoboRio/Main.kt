@@ -9,6 +9,9 @@ import com.ctre.phoenix6.hardware.TalonFX
 import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
+import teaforge.platform.RoboRio.Effect.*
+import teaforge.platform.RoboRio.Effect.InitCanDevice.*
+import teaforge.platform.RoboRio.Effect.InitCanDevice.InitMotor.*
 import teaforge.platform.RoboRio.Subscription.*
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
 import teaforge.utils.Result
@@ -47,6 +50,11 @@ sealed interface Effect<out TMessage> {
         val port: AnalogPort,
         val initialVoltage: Double,
         val message: (Result<AnalogOutputToken, Error>) -> TMessage,
+    ) : Effect<TMessage>
+
+    data class InitWebSocket<TMessage>(
+        val url: String,
+        val message: (Result<WebSocketToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
     data class SetDigitalPortState<TMessage>(
@@ -163,7 +171,7 @@ sealed interface Subscription<out TMessage> {
     ) : Subscription<TMessage>
 
     data class WebSocket<TMessage>(
-        val url: String,
+        val token: WebSocketToken,
         val message: (String) -> TMessage
     ) : Subscription<TMessage>
 
@@ -209,7 +217,6 @@ sealed interface Subscription<out TMessage> {
         val message: (RunningRobotState, RunningRobotState) -> TMessage,
     ) : Subscription<TMessage>
 
-    //todo: add flagging if signals are not OK for too long
     data class CANcoderValue<TMessage>(
         val cancoder: CanDeviceToken.EncoderToken,
         val message: (CanDeviceSnapshot.EncoderSnapshot) -> TMessage,
@@ -410,6 +417,12 @@ fun <TMessage, TNewMessage> mapEffect(
                 remotePort = effect.remotePort,
                 message = { result -> mapFunction(effect.message(result)) }
             )
+
+        is Effect.InitWebSocket ->
+            InitWebSocket(
+                url = effect.url,
+                message = { token -> mapFunction(effect.message(token)) }
+            )
     }
 
 /**
@@ -524,7 +537,7 @@ fun <TMessage, TNewMessage> mapSubscription(
         }
         is WebSocket -> {
             WebSocket(
-                url = subscription.url,
+                token = subscription.token,
                 message = { info -> mapFunction(subscription.message(info)) }
             )
         }

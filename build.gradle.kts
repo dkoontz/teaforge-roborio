@@ -1,13 +1,13 @@
 plugins {
     kotlin("jvm") version "1.9.0"
     id("maven-publish")
-    id("edu.wpi.first.GradleRIO") version "2026.1.1"
+    id("edu.wpi.first.GradleRIO") version "2026.2.1"
     id("com.github.breadmoirai.github-release") version "2.5.2"
 }
 
 project.group = "io.github.dkoontz"
 
-project.version = "0.1.4"
+project.version = "0.1.5"
 
 repositories {
     mavenCentral()
@@ -22,7 +22,7 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib"))
 
-    api(files("libs/teaforge-0.1.3.jar"))
+    api(files("libs/teaforge-0.1.5.jar"))
 
 
     implementation("edu.wpi.first.wpinet:wpinet-java:2026.1.1")

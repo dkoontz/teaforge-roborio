@@ -329,16 +329,12 @@ fun <TMessage, TModel> createWebSocket( // BLOCKING
     model: RoboRioModel<TMessage, TModel>,
     config: Subscription.WebSocket<TMessage>,
 ): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
-    val client = HttpClient(CIO) { install(WebSockets) }
-    val session = runBlocking {
-        client.webSocketSession { url(config.url) }
-    }
     return Pair(
         model,
         SubscriptionState.WebSocket(
             config = config,
-            session = session,
-            client = client
+            session = config.token.session,
+            client = config.token.client
         ),
     )
 }
@@ -736,7 +732,7 @@ fun <TMessage, TModel> runReadHidPortChanged(
     // Compare arrays to detect changes
     val hasChanged =
         !newValue.axisValues.contentEquals(state.lastReadValue.axisValues) ||
-            !newValue.buttonValues.contentEquals(state.lastReadValue.buttonValues)
+                !newValue.buttonValues.contentEquals(state.lastReadValue.buttonValues)
 
     return if (hasChanged) {
         val updatedState = state.copy(lastReadValue = newValue)

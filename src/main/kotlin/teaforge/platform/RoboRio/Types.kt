@@ -14,6 +14,8 @@ import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.DigitalOutput
 import edu.wpi.first.wpilibj.motorcontrol.Spark
 import teaforge.utils.Maybe
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 
 enum class RunningRobotState {
     Disabled,
@@ -83,6 +85,11 @@ sealed interface Error {
         val port: PwmPort,
         val details: String,
     ) : Error
+
+    data class WebSocketInitializationError(
+        val uri: String,
+        val details: String
+    ) : Error
 }
 
 enum class DioPort {
@@ -150,6 +157,12 @@ data class HidInputToken internal constructor(
 data class OrchestraToken internal constructor(
     val motor: CanDeviceToken.MotorToken.TalonMotorToken,
     val orchestra: com.ctre.phoenix6.Orchestra,
+)
+
+data class WebSocketToken internal constructor(
+    val url: String,
+    val client: HttpClient,
+    val session: DefaultClientWebSocketSession
 )
 
 enum class DioPortState {
