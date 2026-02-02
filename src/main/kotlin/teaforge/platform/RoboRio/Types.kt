@@ -1,16 +1,19 @@
 package teaforge.platform.RoboRio
 
 import com.ctre.phoenix6.StatusCode
+import com.ctre.phoenix6.Timestamp
 import com.ctre.phoenix6.hardware.CANcoder
 import com.ctre.phoenix6.hardware.Pigeon2
 import com.ctre.phoenix6.hardware.TalonFX
 import com.revrobotics.REVLibError
 import com.revrobotics.spark.SparkMax
+import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.AnalogOutput
 import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.DigitalOutput
 import edu.wpi.first.wpilibj.motorcontrol.Spark
+import teaforge.utils.Maybe
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 
@@ -23,63 +26,70 @@ enum class RunningRobotState {
     Unknown,
 }
 
-sealed class Error {
+sealed interface Error {
+    sealed interface PhoenixError : Error {
+        data class PhoenixInitializationError(
+            val canId: Int,
+            val status: StatusCode,
+        ) : Error
+
+        data class PhoenixDeviceError(
+            val canDeviceToken: CanDeviceToken,
+            val status: StatusCode,
+        ) : Error
+    }
+
     data class FileNotFound(
         val path: String,
-    ) : Error()
+    ) : Error
 
     data class FileAccessDenied(
         val path: String,
         val reason: String,
-    ) : Error()
+    ) : Error
 
     data class InvalidPath(
         val path: String,
         val reason: String,
-    ) : Error()
+    ) : Error
 
     data class FileReadError(
         val path: String,
         val reason: String,
-    ) : Error()
+    ) : Error
 
-    data object ReadOnlyFileSystem : Error()
+    data object ReadOnlyFileSystem : Error
 
-    data object AlreadyInitialized : Error()
-
-    data class PhoenixError(
-        val canId: Int,
-        val status: StatusCode,
-    ) : Error()
+    data object AlreadyInitialized : Error
 
     data class RevError(
         val canId: Int,
         val error: REVLibError,
-    ) : Error()
+    ) : Error
 
     data class PortInitializationError(
         val details: String,
-    ) : Error()
+    ) : Error
 
     data class DigitalPortError(
         val port: DioPort,
         val details: String,
-    ) : Error()
+    ) : Error
 
     data class AnalogPortError(
         val port: AnalogPort,
         val details: String,
-    ) : Error()
+    ) : Error
 
     data class PwmPortError(
         val port: PwmPort,
         val details: String,
-    ) : Error()
+    ) : Error
 
     data class WebSocketInitializationError(
         val uri: String,
         val details: String
-    ) : Error()
+    ) : Error
 }
 
 enum class DioPort {
@@ -203,3 +213,32 @@ sealed interface GamepadButtonState {
 
     object Released : GamepadButtonState
 }
+
+data class SignalValue<T>(
+    val value: T,
+    val timestamp: Timestamp,
+    val status: StatusCode,
+)
+
+sealed interface CanDeviceSnapshot {
+    data class TalonSnapshot internal constructor (
+        val position: SignalValue<Double>,
+        val velocity: SignalValue<Double>,
+    ) : CanDeviceSnapshot
+
+    data class EncoderSnapshot internal constructor (
+        val absolutePos: SignalValue<Double>,
+        val relativePos: SignalValue<Double>,
+        val velocity: SignalValue<Double>,
+    ) : CanDeviceSnapshot
+
+    data class PigeonSnapshot internal constructor (
+        val yawRate: SignalValue<Double>, //rotations per second
+        val pitchRate: SignalValue<Double>, //rotations per second
+        val rollRate: SignalValue<Double>, //rotations per second
+        val yaw: SignalValue<Double>, //rotations, does not wrap around
+        val pitch: SignalValue<Double>, //rotations, does not wrap around
+        val roll: SignalValue<Double>, //rotations, does not wrap around
+    ) : CanDeviceSnapshot
+}
+

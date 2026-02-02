@@ -2,6 +2,8 @@ package teaforge.platform.RoboRio.internal
 
 import com.ctre.phoenix6.CANBus
 import com.ctre.phoenix6.Orchestra
+import com.ctre.phoenix6.configs.CANcoderConfiguration
+import com.ctre.phoenix6.configs.TalonFXConfiguration
 import com.ctre.phoenix6.StatusCode
 import com.ctre.phoenix6.hardware.CANcoder
 import com.ctre.phoenix6.hardware.Pigeon2
@@ -341,14 +343,14 @@ fun <TMessage, TModel> processEffect(
                 } else {
                     val result =
                         Result.Error<OrchestraToken, Error>(
-                            Error.PhoenixError(effect.motor.id, status),
+                            Error.PhoenixError.PhoenixInitializationError(effect.motor.id, status),
                         )
                     EffectResult.Sync(model, Maybe.Some(effect.message(result)))
                 }
             } catch (e: Exception) {
                 val result =
                     Result.Error<OrchestraToken, Error>(
-                        Error.PhoenixError(effect.motor.id, StatusCode.GeneralError),
+                        Error.PhoenixError.PhoenixInitializationError(effect.motor.id, StatusCode.GeneralError),
                     )
                 EffectResult.Sync(model, Maybe.Some(effect.message(result)))
             }
@@ -363,7 +365,7 @@ fun <TMessage, TModel> processEffect(
                 } else {
                     val result =
                         Result.Error<Unit, Error>(
-                            Error.PhoenixError(effect.token.motor.id, status),
+                            Error.PhoenixError.PhoenixInitializationError(effect.token.motor.id, status),
                         )
                     EffectResult.Sync(model, Maybe.Some(effect.message(result)))
                 }
@@ -371,7 +373,7 @@ fun <TMessage, TModel> processEffect(
                 // TODO: We should be able to catch Phoenix specific errors here to give a better status
                 val result =
                     Result.Error<Unit, Error>(
-                        Error.PhoenixError(effect.token.motor.id, StatusCode.GeneralError),
+                        Error.PhoenixError.PhoenixInitializationError(effect.token.motor.id, StatusCode.GeneralError),
                     )
                 EffectResult.Sync(model, Maybe.Some(effect.message(result)))
             }
@@ -387,7 +389,7 @@ fun <TMessage, TModel> processEffect(
                 } else {
                     val result =
                         Result.Error<Unit, Error>(
-                            Error.PhoenixError(effect.token.motor.id, status),
+                            Error.PhoenixError.PhoenixInitializationError(effect.token.motor.id, status),
                         )
                     EffectResult.Sync(model, Maybe.Some(effect.message(result)))
                 }
@@ -395,7 +397,7 @@ fun <TMessage, TModel> processEffect(
                 // TODO: We should be able to catch Phoenix specific errors here to give a better status
                 val result =
                     Result.Error<Unit, Error>(
-                        Error.PhoenixError(effect.token.motor.id, StatusCode.GeneralError),
+                        Error.PhoenixError.PhoenixInitializationError(effect.token.motor.id, StatusCode.GeneralError),
                     )
                 EffectResult.Sync(model, Maybe.Some(effect.message(result)))
             }
@@ -512,7 +514,7 @@ fun <TMessage, TModel> processEffect(
                     if (status.isOK) {
                         success(CanDeviceToken.MotorToken.TalonMotorToken(effect.id, motor), CanDeviceType.Talon, effect.id, effect.message )
                     } else {
-                        failure(Error.PhoenixError(effect.id, status), CanDeviceType.Talon, effect.id, effect.message)
+                        failure(Error.PhoenixError.PhoenixInitializationError(effect.id, status), CanDeviceType.Talon, effect.id, effect.message)
                     }
                 }
 
@@ -522,7 +524,7 @@ fun <TMessage, TModel> processEffect(
                     if (status.isOK) {
                         success(CanDeviceToken.EncoderToken(effect.id, encoder), CanDeviceType.Encoder, effect.id, effect.message )
                     } else {
-                        failure(Error.PhoenixError(effect.id, status), CanDeviceType.Encoder, effect.id, effect.message)
+                        failure(Error.PhoenixError.PhoenixInitializationError(effect.id, status), CanDeviceType.Encoder, effect.id, effect.message)
                     }
                 }
 
@@ -532,11 +534,41 @@ fun <TMessage, TModel> processEffect(
                     if (status.isOK) {
                         success(CanDeviceToken.PigeonToken(effect.id, pigeon), CanDeviceType.Pigeon, effect.id, effect.message )
                     } else {
-                        failure(Error.PhoenixError(effect.id, status), CanDeviceType.Pigeon, effect.id, effect.message)
+                        failure(Error.PhoenixError.PhoenixInitializationError(effect.id, status), CanDeviceType.Pigeon, effect.id, effect.message)
                     }
                 }
 
 
+            }
+        }
+        //todo: change to async effects
+        is Effect.ConfigCanDevice -> {
+
+            when (effect) {
+                is Effect.ConfigCanDevice.Talon -> {
+                    val status = effect.talon.device.configurator.apply(effect.config) //applies config, waits for .1 seconds
+                    if (status.isOK){
+                        EffectResult.Sync(model, Maybe.Some(effect.message(Result.Success<CanDeviceToken.MotorToken.TalonMotorToken, Error>(effect.talon))))
+                    } else {
+                        EffectResult.Sync(model, Maybe.Some(effect.message(Result.Error<CanDeviceToken.MotorToken.TalonMotorToken, Error>(Error.PhoenixError.PhoenixDeviceError(effect.talon, status)))))
+                    }
+                }
+                is Effect.ConfigCanDevice.Encoder -> {
+                    val status = effect.cancoder.device.configurator.apply(effect.config) //applies config, waits for .1 seconds
+                    if (status.isOK){
+                        EffectResult.Sync(model, Maybe.Some(effect.message(Result.Success<CanDeviceToken.EncoderToken, Error>(effect.cancoder))))
+                    } else {
+                        EffectResult.Sync(model, Maybe.Some(effect.message(Result.Error<CanDeviceToken.EncoderToken, Error>(Error.PhoenixError.PhoenixDeviceError(effect.cancoder, status)))))
+                    }
+                }
+                is Effect.ConfigCanDevice.Pigeon -> {
+                    val status = effect.pigeon.device.configurator.apply(effect.config) //applies config, waits for .1 seconds
+                    if (status.isOK){
+                        EffectResult.Sync(model, Maybe.Some(effect.message(Result.Success<CanDeviceToken.PigeonToken, Error>(effect.pigeon))))
+                    } else {
+                        EffectResult.Sync(model, Maybe.Some(effect.message(Result.Error<CanDeviceToken.PigeonToken, Error>(Error.PhoenixError.PhoenixDeviceError(effect.pigeon, status)))))
+                    }
+                }
             }
         }
 

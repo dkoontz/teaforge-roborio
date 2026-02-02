@@ -1,5 +1,11 @@
 package teaforge.platform.RoboRio
 
+import com.ctre.phoenix6.StatusSignal
+import com.ctre.phoenix6.Timestamp
+import com.ctre.phoenix6.configs.CANcoderConfiguration
+import com.ctre.phoenix6.configs.Pigeon2Configuration
+import com.ctre.phoenix6.configs.TalonFXConfiguration
+import com.ctre.phoenix6.hardware.TalonFX
 import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
@@ -9,6 +15,8 @@ import teaforge.platform.RoboRio.Effect.InitCanDevice.InitMotor.*
 import teaforge.platform.RoboRio.Subscription.*
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
 import teaforge.utils.Result
+import edu.wpi.first.units.measure.*
+import jdk.jshell.Snippet
 
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase =
@@ -102,6 +110,26 @@ sealed interface Effect<out TMessage> {
         ) : InitCanDevice<TMessage>
     }
 
+    sealed interface ConfigCanDevice<TMessage> : Effect<TMessage> {
+        data class Talon<TMessage>(
+            val talon: CanDeviceToken.MotorToken.TalonMotorToken,
+            val config: TalonFXConfiguration,
+            val message: (Result<CanDeviceToken.MotorToken.TalonMotorToken, Error>) -> TMessage
+        ) : ConfigCanDevice<TMessage>
+
+        data class Encoder<TMessage>(
+            val cancoder: CanDeviceToken.EncoderToken,
+            val config: CANcoderConfiguration,
+            val message: (Result<CanDeviceToken.EncoderToken, Error>) -> TMessage
+        ) : ConfigCanDevice<TMessage>
+
+        data class Pigeon<TMessage>(
+            val pigeon: CanDeviceToken.PigeonToken,
+            val config: Pigeon2Configuration,
+            val message: (Result<CanDeviceToken.PigeonToken, Error>) -> TMessage
+        ) : ConfigCanDevice<TMessage>
+    }
+
     data class SetCanMotorSpeed(
         val motor: CanDeviceToken.MotorToken,
         val value: Double,
@@ -190,17 +218,34 @@ sealed interface Subscription<out TMessage> {
     ) : Subscription<TMessage>
 
     data class CANcoderValue<TMessage>(
-        val token: CanDeviceToken.EncoderToken,
-        val millisecondsBetweenReads: Int,
-        val message: (Double) -> TMessage,
-    ) : Subscription<TMessage>
+        val cancoder: CanDeviceToken.EncoderToken,
+        val message: (CanDeviceSnapshot.EncoderSnapshot) -> TMessage,
+    ) : Subscription<TMessage> {
+        val initialAbsolutePos: StatusSignal<Angle> get () = cancoder.device.absolutePosition
+        val initialRelativePos: StatusSignal<Angle> get() = cancoder.device.positionSinceBoot
+        val initialVelocity: StatusSignal<AngularVelocity> get() = cancoder.device.velocity
+    }
 
     data class PigeonValue<TMessage>(
         val pigeon: CanDeviceToken.PigeonToken,
-        val millisecondsBetweenReads: Int,
-        val message: (Rotation3d) -> TMessage,
-    ) : Subscription<TMessage>
+        val message: (CanDeviceSnapshot.PigeonSnapshot) -> TMessage,
+    ) : Subscription<TMessage> {
+        val initialYawRate: StatusSignal<AngularVelocity> get() = pigeon.device.angularVelocityZWorld
+        val initialPitchRate: StatusSignal<AngularVelocity> get() = pigeon.device.angularVelocityYWorld
+        val initialRollRate: StatusSignal<AngularVelocity> get() = pigeon.device.angularVelocityXWorld
+        val initialYaw: StatusSignal<Angle> get () = pigeon.device.yaw
+        val initialPitch: StatusSignal<Angle> get () = pigeon.device.pitch
+        val initialRoll: StatusSignal<Angle> get () = pigeon.device.roll
 
+    }
+
+    data class TalonValue<TMessage>(
+        val talon: CanDeviceToken.MotorToken.TalonMotorToken,
+        val message: (CanDeviceSnapshot.TalonSnapshot) -> TMessage
+    ) : Subscription<TMessage> {
+        val initialVelocity: StatusSignal<AngularVelocity> get() = talon.device.velocity //rotations of rotor per sec
+        val initialPosition: StatusSignal<Angle> get() = talon.device.position //rotations of rotor
+    }
 
 }
 
@@ -254,102 +299,119 @@ fun <TMessage, TNewMessage> mapEffect(
     when (effect) {
         is Effect.Log -> effect
         is Effect.InitDigitalPortForInput ->
-            InitDigitalPortForInput(
+            Effect.InitDigitalPortForInput(
                 port = effect.port,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.InitDigitalPortForOutput ->
-            InitDigitalPortForOutput(
+            Effect.InitDigitalPortForOutput(
                 port = effect.port,
                 initialValue = effect.initialValue,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.InitAnalogPortForInput ->
-            InitAnalogPortForInput(
+            Effect.InitAnalogPortForInput(
                 port = effect.port,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.InitAnalogPortForOutput ->
-            InitAnalogPortForOutput(
+            Effect.InitAnalogPortForOutput(
                 port = effect.port,
                 initialVoltage = effect.initialVoltage,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.SetDigitalPortState ->
-            SetDigitalPortState(
+            Effect.SetDigitalPortState(
                 token = effect.token,
                 value = effect.value,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.SetAnalogPortVoltage ->
-            SetAnalogPortVoltage(
+            Effect.SetAnalogPortVoltage(
                 token = effect.token,
                 voltage = effect.voltage,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.InitPwmPortForOutput ->
-            InitPwmPortForOutput(
+            Effect.InitPwmPortForOutput(
                 port = effect.port,
                 initialSpeed = effect.initialSpeed,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.SetPwmValue ->
-            SetPwmValue(
+            Effect.SetPwmValue(
                 token = effect.token,
                 value = effect.value,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.InitHidPortForInput ->
-            InitHidPortForInput(
+            Effect.InitHidPortForInput(
                 port = effect.port,
                 message = { result -> mapFunction(effect.message(result)) },
             )
 
         is Effect.InitCanDevice.InitMotor.Talon ->
-            Talon(
+            Effect.InitCanDevice.InitMotor.Talon(
                 id = effect.id,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )
         is Effect.InitCanDevice.InitMotor.Neo ->
-            Neo(
+            Effect.InitCanDevice.InitMotor.Neo(
                 id = effect.id,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) }
             )
         is Effect.InitCanDevice.Encoder ->
-            Encoder(
+            Effect.InitCanDevice.Encoder(
                 id = effect.id,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) }
             )
         is Effect.InitCanDevice.Pigeon ->
-            Pigeon(
+            Effect.InitCanDevice.Pigeon(
                 id = effect.id,
-                message = { deviceId, result -> mapFunction(effect.message( deviceId, result)) }
+                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) }
             )
-
+        is Effect.ConfigCanDevice.Talon ->
+            Effect.ConfigCanDevice.Talon(
+                talon = effect.talon,
+                config = effect.config,
+                message = { result -> mapFunction(effect.message(result))}
+            )
+        is Effect.ConfigCanDevice.Encoder ->
+            Effect.ConfigCanDevice.Encoder(
+                cancoder = effect.cancoder,
+                config = effect.config,
+                message = { result -> mapFunction(effect.message(result)) }
+            )
+        is Effect.ConfigCanDevice.Pigeon ->
+            Effect.ConfigCanDevice.Pigeon(
+                pigeon = effect.pigeon,
+                config = effect.config,
+                message = { result -> mapFunction(effect.message(result))}
+            )
         is Effect.SetCanMotorSpeed -> effect
         is Effect.ReadFile ->
-            ReadFile(
+            Effect.ReadFile(
                 path = effect.path,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.LoadSong ->
-            LoadSong(
+            Effect.LoadSong(
                 motor = effect.motor,
                 songData = effect.songData,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.PlaySong ->
-            PlaySong(
+            Effect.PlaySong(
                 token = effect.token,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.StopSong ->
-            StopSong(
+            Effect.StopSong(
                 token = effect.token,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.ForwardPort ->
-            ForwardPort(
+            Effect.ForwardPort(
                 port = effect.port,
                 remoteName = effect.remoteName,
                 remotePort = effect.remotePort,
@@ -459,20 +521,24 @@ fun <TMessage, TNewMessage> mapSubscription(
             )
         is CANcoderValue ->
             CANcoderValue(
-                token = subscription.token,
-                millisecondsBetweenReads = subscription.millisecondsBetweenReads,
-                message = { value -> mapFunction(subscription.message(value)) },
+                cancoder = subscription.cancoder,
+                message = { snapshot -> mapFunction(subscription.message(snapshot)) },
             )
         is PigeonValue ->
             PigeonValue(
                 pigeon = subscription.pigeon,
-                millisecondsBetweenReads = subscription.millisecondsBetweenReads,
-                message = { rotation -> mapFunction(subscription.message(rotation)) },
+                message = { snapshot -> mapFunction(subscription.message(snapshot)) },
             )
+        is TalonValue -> {
+            TalonValue(
+                talon = subscription.talon,
+                message = { snapshot -> mapFunction(subscription.message(snapshot)) }
+            )
+        }
         is WebSocket -> {
             WebSocket(
                 token = subscription.token,
                 message = { info -> mapFunction(subscription.message(info)) }
             )
         }
-         }
+    }

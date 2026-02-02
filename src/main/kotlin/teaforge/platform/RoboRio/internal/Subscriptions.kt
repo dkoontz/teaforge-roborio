@@ -1,6 +1,13 @@
 package teaforge.platform.RoboRio.internal
 
+import com.ctre.phoenix6.StatusCode
+import com.ctre.phoenix6.StatusSignal
+import com.ctre.phoenix6.Timestamp
+import teaforge.platform.RoboRio.*
 import edu.wpi.first.hal.HALUtil
+import edu.wpi.first.math.geometry.Rotation3d
+import edu.wpi.first.units.measure.Angle
+import edu.wpi.first.units.measure.AngularVelocity
 import edu.wpi.first.wpilibj.GenericHID
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
@@ -8,16 +15,16 @@ import io.ktor.client.plugins.websocket.*
 import io.ktor.client.request.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.runBlocking
-import teaforge.platform.RoboRio.CanDeviceToken
-import teaforge.platform.RoboRio.CanDeviceType
+import sun.misc.Signal
 import teaforge.platform.RoboRio.DioPortState
 import teaforge.platform.RoboRio.HidValue
+import teaforge.platform.RoboRio.CanDeviceSnapshot
 import teaforge.platform.RoboRio.RunningRobotState
 import teaforge.platform.RoboRio.Subscription
 import teaforge.utils.Maybe
-import teaforge.utils.Result
 import teaforge.utils.map
-import teaforge.utils.unwrap
+import teaforge.utils.Result
+import kotlin.math.PI
 
 sealed interface SubscriptionState<TMessage> {
     data class Interval<TMessage>(
@@ -73,14 +80,18 @@ sealed interface SubscriptionState<TMessage> {
 
     data class CANcoderValue<TMessage>(
         val config: Subscription.CANcoderValue<TMessage>,
-        val lastReadTimeMicroseconds: Long,
+        val lastReadCANcoderValue: CanDeviceSnapshot.EncoderSnapshot
     ) : SubscriptionState<TMessage>
 
     data class PigeonValue<TMessage>(
         val config: Subscription.PigeonValue<TMessage>,
-        val lastReadTimeMicroseconds: Long,
+        val lastReadPigeonValue: CanDeviceSnapshot.PigeonSnapshot
     ) : SubscriptionState<TMessage>
 
+    data class TalonValue<TMessage>(
+        val config: Subscription.TalonValue<TMessage>,
+        val lastReadTalonValue: CanDeviceSnapshot.TalonSnapshot,
+    ) : SubscriptionState<TMessage>
 }
 
 fun <TMessage, TModel> createDigitalPortValueState(
@@ -214,7 +225,23 @@ fun <TMessage, TModel> createCANcoderValueState(
         model,
         SubscriptionState.CANcoderValue(
             config = config,
-            lastReadTimeMicroseconds = 0,
+            lastReadCANcoderValue = CanDeviceSnapshot.EncoderSnapshot(
+                absolutePos = SignalValue<Double>(
+                    value = config.initialAbsolutePos.valueAsDouble,
+                    timestamp = config.initialAbsolutePos.timestamp,
+                    status = config.initialAbsolutePos.status,
+                ),
+                relativePos = SignalValue<Double>(
+                    value = config.initialRelativePos.valueAsDouble,
+                    timestamp = config.initialRelativePos.timestamp,
+                    status = config.initialRelativePos.status,
+                ),
+                velocity = SignalValue<Double>(
+                    value = config.initialVelocity.valueAsDouble,
+                    timestamp = config.initialVelocity.timestamp,
+                    status = config.initialVelocity.status,
+                ),
+            )
         ),
     )
 
@@ -226,8 +253,62 @@ fun <TMessage, TModel> createPigeonValueState(
         model,
         SubscriptionState.PigeonValue(
             config = config,
-            lastReadTimeMicroseconds = 0,
+            lastReadPigeonValue = CanDeviceSnapshot.PigeonSnapshot(
+                yawRate = SignalValue(
+                    value = config.initialYawRate.valueAsDouble,
+                    timestamp = config.initialYawRate.timestamp,
+                    status = config.initialYawRate.status,
+                ),
+                pitchRate = SignalValue(
+                    value = config.initialPitchRate.valueAsDouble,
+                    timestamp = config.initialPitchRate.timestamp,
+                    status = config.initialPitchRate.status,
+                ),
+                rollRate = SignalValue(
+                    value = config.initialRollRate.valueAsDouble,
+                    timestamp = config.initialRollRate.timestamp,
+                    status = config.initialRollRate.status,
+                ),
+                yaw = SignalValue(
+                    value = config.initialYaw.valueAsDouble,
+                    timestamp = config.initialYaw.timestamp,
+                    status = config.initialYaw.status,
+                ),
+                pitch = SignalValue(
+                    value = config.initialPitch.valueAsDouble,
+                    timestamp = config.initialPitch.timestamp,
+                    status = config.initialPitch.status,
+                ),
+                roll = SignalValue(
+                    value = config.initialRoll.valueAsDouble,
+                    timestamp = config.initialRoll.timestamp,
+                    status = config.initialRoll.status,
+                ),
+            )
         ),
+    )
+
+fun <TMessage, TModel> createTalonValueState(
+    model: RoboRioModel<TMessage, TModel>,
+    config: Subscription.TalonValue<TMessage>,
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> =
+    Pair(
+        model,
+        SubscriptionState.TalonValue(
+            config = config,
+            lastReadTalonValue = CanDeviceSnapshot.TalonSnapshot(
+                position = SignalValue(
+                    value = config.initialPosition.valueAsDouble,
+                    timestamp = config.initialPosition.timestamp,
+                    status = config.initialPosition.status,
+                ),
+                velocity = SignalValue(
+                    value = config.initialVelocity.valueAsDouble,
+                    timestamp = config.initialVelocity.timestamp,
+                    status = config.initialVelocity.status,
+                ),
+            )
+        )
     )
 
 fun <TMessage, TModel> createInterval(
@@ -278,6 +359,7 @@ fun <TMessage, TModel> processSubscription(
         is SubscriptionState.PigeonValue -> runReadPigeon(model, subscriptionState)
         is SubscriptionState.Interval -> runReadInterval(model, subscriptionState)
         is SubscriptionState.WebSocket -> runReadWebSocket(model, subscriptionState)
+        is SubscriptionState.TalonValue -> runReadTalonValue(model, subscriptionState)
     }
 
 fun <TMessage, TModel> startSubscriptionHandler(
@@ -297,6 +379,7 @@ fun <TMessage, TModel> startSubscriptionHandler(
         is Subscription.PigeonValue -> createPigeonValueState(model, subscription)
         is Subscription.Interval -> createInterval(model, subscription)
         is Subscription.WebSocket -> createWebSocket(model, subscription)
+        is Subscription.TalonValue -> createTalonValueState(model, subscription)
     }
 
 fun <TMessage, TModel> stopSubscriptionHandler(
@@ -313,7 +396,8 @@ fun <TMessage, TModel> stopSubscriptionHandler(
         is SubscriptionState.RobotState -> model
         is SubscriptionState.RobotStateChanged -> model
         is SubscriptionState.CANcoderValue -> model
-        is SubscriptionState.PigeonValue<*> -> model
+        is SubscriptionState.PigeonValue -> model
+        is SubscriptionState.TalonValue -> model
         is SubscriptionState.Interval -> model
         is SubscriptionState.WebSocket -> closeWebSocket(model, subscriptionState)
     }
@@ -415,19 +499,42 @@ fun <TMessage, TModel> runReadCANcoder(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.CANcoderValue<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
-    val currentMicroseconds = HALUtil.getFPGATime()
-    val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
-    return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
-        val cancoder = state.config.token.device
-        val newValue = cancoder.absolutePosition.valueAsDouble
-        val normalized = newValue * 360
+    val absolutePosSignal = state.config.cancoder.device.absolutePosition
+    val relativePosSignal = state.config.cancoder.device.positionSinceBoot
+    val velocitySignal = state.config.cancoder.device.velocity
 
+    val currentAbsolutePosTimestamp = absolutePosSignal.timestamp
+    val currentRelativePosTimestamp = relativePosSignal.timestamp
+    val currentVelocityTimestamp = velocitySignal.timestamp
+
+    val atLeastOneUpdated = !(currentAbsolutePosTimestamp.equals(state.lastReadCANcoderValue.absolutePos.timestamp) &&
+                            currentRelativePosTimestamp.equals(state.lastReadCANcoderValue.relativePos.timestamp) &&
+                            currentVelocityTimestamp.equals(state.lastReadCANcoderValue.velocity.timestamp))
+
+    return if (atLeastOneUpdated) {
+        val newSnapshot = CanDeviceSnapshot.EncoderSnapshot(
+            //TODO: convert to rotations? (max)
+            absolutePos = SignalValue<Double>(
+                value = absolutePosSignal.valueAsDouble * 360, //degrees
+                timestamp = currentAbsolutePosTimestamp,
+                status = absolutePosSignal.status,
+            ),
+            relativePos = SignalValue<Double>(
+                value = relativePosSignal.valueAsDouble * 360, //degrees
+                timestamp = currentRelativePosTimestamp,
+                status = relativePosSignal.status,
+            ),
+            velocity = SignalValue<Double>(
+                value = velocitySignal.valueAsDouble, //rotations per sec
+                timestamp = currentVelocityTimestamp,
+                status = velocitySignal.status,
+            )
+        )
         val updatedState =
             state.copy(
-                lastReadTimeMicroseconds = currentMicroseconds,
+                lastReadCANcoderValue = newSnapshot,
             )
-
-        Triple(model, updatedState, Maybe.Some(state.config.message(normalized)))
+        Triple(model, updatedState, Maybe.Some(state.config.message(newSnapshot)))
     } else {
         Triple(model, state, Maybe.None)
     }
@@ -437,18 +544,102 @@ fun <TMessage, TModel> runReadPigeon(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.PigeonValue<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
-    val currentMicroseconds = HALUtil.getFPGATime()
-    val elapsedTime = currentMicroseconds - state.lastReadTimeMicroseconds
-    return if (elapsedTime >= state.config.millisecondsBetweenReads * 1_000L) {
-        val pigeon = state.config.pigeon.device
-        pigeon.rotation3d?.let { newValue ->
-            val updatedState =
-                state.copy(
-                    lastReadTimeMicroseconds = currentMicroseconds,
-                )
+    val yawRateSignal = state.config.pigeon.device.angularVelocityZWorld
+    val pitchRateSignal = state.config.pigeon.device.angularVelocityYWorld
+    val rollRateSignal = state.config.pigeon.device.angularVelocityXWorld
+    val yawSignal = state.config.pigeon.device.yaw
+    val pitchSignal = state.config.pigeon.device.pitch
+    val rollSignal = state.config.pigeon.device.roll
 
-            Triple(model, updatedState, Maybe.Some(state.config.message(newValue)))
-        } ?: Triple(model, state, Maybe.None)
+    val currentYawRateTimestamp = yawRateSignal.timestamp
+    val currentPitchRateTimestamp = pitchRateSignal.timestamp
+    val currentRollRateTimestamp = rollRateSignal.timestamp
+    val currentYawTimestamp = yawSignal.timestamp
+    val currentPitchTimestamp = pitchSignal.timestamp
+    val currentRollTimestamp = rollSignal.timestamp
+
+    val atLeastOneUpdated = !(currentYawRateTimestamp.equals(state.lastReadPigeonValue.yawRate.timestamp) &&
+                            currentPitchRateTimestamp.equals(state.lastReadPigeonValue.pitchRate.timestamp) &&
+                            currentRollRateTimestamp.equals(state.lastReadPigeonValue.rollRate.timestamp) &&
+                            currentYawTimestamp.equals(state.lastReadPigeonValue.yaw.timestamp) &&
+                            currentPitchTimestamp.equals(state.lastReadPigeonValue.pitch.timestamp) &&
+                            currentRollTimestamp.equals(state.lastReadPigeonValue.roll.timestamp))
+
+    return if (atLeastOneUpdated) {
+        val newSnapshot = CanDeviceSnapshot.PigeonSnapshot(
+                yawRate = SignalValue(
+                    value = yawRateSignal.valueAsDouble/360,
+                    timestamp = yawRateSignal.timestamp,
+                    status = yawRateSignal.status,
+                ),
+                pitchRate = SignalValue(
+                    value = pitchRateSignal.valueAsDouble/360,
+                    timestamp = pitchRateSignal.timestamp,
+                    status = pitchRateSignal.status,
+                ),
+                rollRate = SignalValue(
+                    value = rollRateSignal.valueAsDouble/360,
+                    timestamp = rollRateSignal.timestamp,
+                    status = rollRateSignal.status,
+                ),
+                yaw = SignalValue(
+                    value = yawSignal.valueAsDouble/360,
+                    timestamp = yawSignal.timestamp,
+                    status = yawSignal.status,
+                ),
+                pitch = SignalValue(
+                    value = pitchSignal.valueAsDouble/360,
+                    timestamp = pitchSignal.timestamp,
+                    status = pitchSignal.status,
+                ),
+                roll = SignalValue(
+                    value = rollSignal.valueAsDouble/360,
+                    timestamp = rollSignal.timestamp,
+                    status = rollSignal.status,
+                ),
+        )
+        val updatedState = state.copy(
+            lastReadPigeonValue = newSnapshot,
+        )
+        Triple(model, updatedState, Maybe.Some(state.config.message(newSnapshot)))
+    } else {
+        Triple(model, state, Maybe.None)
+    }
+}
+
+fun <TMessage, TModel> runReadTalonValue(
+    //not thread safe, don't use in multiple threads
+    model: RoboRioModel<TMessage, TModel>,
+    state: SubscriptionState.TalonValue<TMessage>,
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
+    val positionSignal = state.config.talon.device.position
+    val velocitySignal = state.config.talon.device.velocity
+
+    val currentPositionTimestamp = positionSignal.timestamp
+    val currentVelocityTimestamp = velocitySignal.timestamp
+
+    val atLeastOneUpdated = !(currentPositionTimestamp.equals(state.lastReadTalonValue.position.timestamp) &&
+                            currentVelocityTimestamp.equals(state.lastReadTalonValue.velocity.timestamp))
+
+    return if (atLeastOneUpdated) {
+        val newSnapshot = CanDeviceSnapshot.TalonSnapshot(
+            position = SignalValue<Double>(
+                //since we're returning both the timestamp and status in the message we can check if it's stale and its status(error) in the application layer
+                value = positionSignal.valueAsDouble,
+                timestamp = currentPositionTimestamp,
+                status = positionSignal.status,
+            ),
+            velocity = SignalValue<Double>(
+                value = velocitySignal.valueAsDouble,
+                timestamp = currentVelocityTimestamp,
+                status = velocitySignal.status,
+            ),
+        )
+        val updatedState =
+            state.copy(
+                lastReadTalonValue = newSnapshot,
+            )
+        Triple(model, updatedState, Maybe.Some(state.config.message(newSnapshot)))
     } else {
         Triple(model, state, Maybe.None)
     }
