@@ -9,6 +9,7 @@ import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.units.measure.Angle
 import edu.wpi.first.units.measure.AngularVelocity
 import edu.wpi.first.wpilibj.GenericHID
+import edu.wpi.first.wpilibj.SerialPort
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.websocket.*
@@ -21,6 +22,7 @@ import teaforge.platform.RoboRio.HidValue
 import teaforge.platform.RoboRio.CanDeviceSnapshot
 import teaforge.platform.RoboRio.RunningRobotState
 import teaforge.platform.RoboRio.Subscription
+import teaforge.platform.RoboRio.internal.SubscriptionState
 import teaforge.utils.Maybe
 import teaforge.utils.map
 import teaforge.utils.Result
@@ -91,6 +93,11 @@ sealed interface SubscriptionState<TMessage> {
     data class TalonValue<TMessage>(
         val config: Subscription.TalonValue<TMessage>,
         val lastReadTalonValue: CanDeviceSnapshot.TalonSnapshot,
+    ) : SubscriptionState<TMessage>
+
+    data class SerialValue<TMessage>(
+        val config: Subscription.SerialValue<TMessage>,
+        val reader: SerialPort,
     ) : SubscriptionState<TMessage>
 }
 
@@ -325,7 +332,7 @@ fun <TMessage, TModel> createInterval(
     )
 }
 
-fun <TMessage, TModel> createWebSocket( // BLOCKING
+fun <TMessage, TModel> createWebSocket(
     model: RoboRioModel<TMessage, TModel>,
     config: Subscription.WebSocket<TMessage>,
 ): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
@@ -339,6 +346,19 @@ fun <TMessage, TModel> createWebSocket( // BLOCKING
     )
 }
 
+fun <TMessage, TModel> createSerialState(
+    model: RoboRioModel<TMessage, TModel>,
+    config: Subscription.SerialValue<TMessage>,
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
+    return Pair(
+        model,
+        SubscriptionState.SerialValue(
+            config = config,
+            reader = SerialPort(config.baudRate, config.port),
+        ),
+    )
+}
+
 
 
 fun <TMessage, TModel> processSubscription(
@@ -348,8 +368,7 @@ fun <TMessage, TModel> processSubscription(
     when (subscriptionState) {
         is SubscriptionState.DigitalPortValue -> runReadDigitalPort(model, subscriptionState)
         is SubscriptionState.DigitalPortValueChanged -> runReadDigitalPortChanged(model, subscriptionState)
-        is SubscriptionState.AnalogPortValue ->
-            runReadAnalogPort(model, subscriptionState)
+        is SubscriptionState.AnalogPortValue -> runReadAnalogPort(model, subscriptionState)
         is SubscriptionState.AnalogPortValueChanged -> runReadAnalogPortChanged(model, subscriptionState)
         is SubscriptionState.HidPortValue -> runReadHidPort(model, subscriptionState)
         is SubscriptionState.HidPortValueChanged -> runReadHidPortChanged(model, subscriptionState)
@@ -360,6 +379,7 @@ fun <TMessage, TModel> processSubscription(
         is SubscriptionState.Interval -> runReadInterval(model, subscriptionState)
         is SubscriptionState.WebSocket -> runReadWebSocket(model, subscriptionState)
         is SubscriptionState.TalonValue -> runReadTalonValue(model, subscriptionState)
+        is SubscriptionState.SerialValue -> runReadSerialValue(model, subscriptionState)
     }
 
 fun <TMessage, TModel> startSubscriptionHandler(
@@ -380,6 +400,7 @@ fun <TMessage, TModel> startSubscriptionHandler(
         is Subscription.Interval -> createInterval(model, subscription)
         is Subscription.WebSocket -> createWebSocket(model, subscription)
         is Subscription.TalonValue -> createTalonValueState(model, subscription)
+        is Subscription.SerialValue -> createSerialState(model, subscription)
     }
 
 fun <TMessage, TModel> stopSubscriptionHandler(
@@ -400,7 +421,22 @@ fun <TMessage, TModel> stopSubscriptionHandler(
         is SubscriptionState.TalonValue -> model
         is SubscriptionState.Interval -> model
         is SubscriptionState.WebSocket -> closeWebSocket(model, subscriptionState)
+        is SubscriptionState.SerialValue -> closeSerial(model, subscriptionState)
     }
+
+fun <TMessage, TModel> runReadSerialValue(
+    model: RoboRioModel<TMessage, TModel>,
+    state: SubscriptionState.SerialValue<TMessage>,
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
+    val info: String? = state.reader.readString()
+
+    val message: Maybe<TMessage> = info?.let {
+        if (it.isNotEmpty()) Maybe.Some(state.config.message(it))
+        else Maybe.None
+    } ?: Maybe.None
+
+    return Triple(model, state, message)
+}
 
 fun <TMessage, TModel> runReadDigitalPort(
     model: RoboRioModel<TMessage, TModel>,
@@ -750,5 +786,13 @@ fun <TMessage, TModel> closeWebSocket(
         state.session.close(CloseReason(CloseReason.Codes.NORMAL, "End Program"))
     }
     state.client.close()
+    return model
+}
+
+fun <TMessage, TModel> closeSerial(
+    model: RoboRioModel<TMessage, TModel>,
+    state: SubscriptionState.SerialValue<TMessage>,
+) : RoboRioModel<TMessage, TModel> {
+    state.reader.close()
     return model
 }
