@@ -1,32 +1,23 @@
 package teaforge.platform.RoboRio.internal
 
-import com.ctre.phoenix6.StatusCode
 import com.ctre.phoenix6.StatusSignal
-import com.ctre.phoenix6.Timestamp
 import teaforge.platform.RoboRio.*
 import edu.wpi.first.hal.HALUtil
-import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.units.measure.Angle
 import edu.wpi.first.units.measure.AngularVelocity
 import edu.wpi.first.wpilibj.GenericHID
 import edu.wpi.first.wpilibj.SerialPort
 import io.ktor.client.*
-import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.websocket.*
-import io.ktor.client.request.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.runBlocking
-import sun.misc.Signal
 import teaforge.platform.RoboRio.DioPortState
 import teaforge.platform.RoboRio.HidValue
 import teaforge.platform.RoboRio.CanDeviceSnapshot
 import teaforge.platform.RoboRio.RunningRobotState
 import teaforge.platform.RoboRio.Subscription
-import teaforge.platform.RoboRio.internal.SubscriptionState
 import teaforge.utils.Maybe
 import teaforge.utils.map
-import teaforge.utils.Result
-import kotlin.math.PI
 
 sealed interface SubscriptionState<TMessage> {
     data class Interval<TMessage>(
@@ -227,96 +218,74 @@ fun <TMessage, TModel> createRobotStateChangedState(
 fun <TMessage, TModel> createCANcoderValueState(
     model: RoboRioModel<TMessage, TModel>,
     config: Subscription.CANcoderValue<TMessage>,
-): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> =
-    Pair(
-        model,
-        SubscriptionState.CANcoderValue(
-            config = config,
-            lastReadCANcoderValue = CanDeviceSnapshot.EncoderSnapshot(
-                absolutePos = SignalValue<Double>(
-                    value = config.initialAbsolutePos.valueAsDouble,
-                    timestamp = config.initialAbsolutePos.timestamp,
-                    status = config.initialAbsolutePos.status,
-                ),
-                relativePos = SignalValue<Double>(
-                    value = config.initialRelativePos.valueAsDouble,
-                    timestamp = config.initialRelativePos.timestamp,
-                    status = config.initialRelativePos.status,
-                ),
-                velocity = SignalValue<Double>(
-                    value = config.initialVelocity.valueAsDouble,
-                    timestamp = config.initialVelocity.timestamp,
-                    status = config.initialVelocity.status,
-                ),
-            )
-        ),
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
+    val cancoder = config.token.device
+
+    val absolutePosition: StatusSignal<Angle> = cancoder.absolutePosition
+    val relativePosition: StatusSignal<Angle> = cancoder.position
+    val velocity: StatusSignal<AngularVelocity> = cancoder.velocity
+
+    val subscriptionState = SubscriptionState.CANcoderValue(
+        config = config,
+        lastReadCANcoderValue = CanDeviceSnapshot.EncoderSnapshot(
+            absolutePos = statusSignalToSignalValue(absolutePosition),
+            relativePos = statusSignalToSignalValue(relativePosition),
+            velocity = statusSignalToSignalValue(velocity),
+        )
     )
+
+    return model to subscriptionState
+}
 
 fun <TMessage, TModel> createPigeonValueState(
     model: RoboRioModel<TMessage, TModel>,
     config: Subscription.PigeonValue<TMessage>,
-): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> =
-    Pair(
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
+    val pigeon = config.token.device
+
+    val yaw: StatusSignal<Angle> = pigeon.yaw
+    val pitch: StatusSignal<Angle> = pigeon.pitch
+    val roll: StatusSignal<Angle> = pigeon.roll
+    val yawRate: StatusSignal<AngularVelocity> = pigeon.angularVelocityZWorld
+    val pitchRate: StatusSignal<AngularVelocity> = pigeon.angularVelocityYWorld
+    val rollRate: StatusSignal<AngularVelocity> = pigeon.angularVelocityXWorld
+
+    return Pair(
         model,
         SubscriptionState.PigeonValue(
             config = config,
             lastReadPigeonValue = CanDeviceSnapshot.PigeonSnapshot(
-                yawRate = SignalValue(
-                    value = config.initialYawRate.valueAsDouble,
-                    timestamp = config.initialYawRate.timestamp,
-                    status = config.initialYawRate.status,
-                ),
-                pitchRate = SignalValue(
-                    value = config.initialPitchRate.valueAsDouble,
-                    timestamp = config.initialPitchRate.timestamp,
-                    status = config.initialPitchRate.status,
-                ),
-                rollRate = SignalValue(
-                    value = config.initialRollRate.valueAsDouble,
-                    timestamp = config.initialRollRate.timestamp,
-                    status = config.initialRollRate.status,
-                ),
-                yaw = SignalValue(
-                    value = config.initialYaw.valueAsDouble,
-                    timestamp = config.initialYaw.timestamp,
-                    status = config.initialYaw.status,
-                ),
-                pitch = SignalValue(
-                    value = config.initialPitch.valueAsDouble,
-                    timestamp = config.initialPitch.timestamp,
-                    status = config.initialPitch.status,
-                ),
-                roll = SignalValue(
-                    value = config.initialRoll.valueAsDouble,
-                    timestamp = config.initialRoll.timestamp,
-                    status = config.initialRoll.status,
-                ),
+                yawRate = statusSignalToSignalValue(yawRate),
+                pitchRate = statusSignalToSignalValue(pitchRate),
+                rollRate = statusSignalToSignalValue(rollRate),
+                yaw = statusSignalToSignalValue(yaw),
+                pitch = statusSignalToSignalValue(pitch),
+                roll = statusSignalToSignalValue(roll),
             )
         ),
     )
+}
 
 fun <TMessage, TModel> createTalonValueState(
     model: RoboRioModel<TMessage, TModel>,
     config: Subscription.TalonValue<TMessage>,
-): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> =
-    Pair(
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
+    val talon = config.token.device
+
+    val position = talon.position
+    val velocity = talon.velocity
+
+    return Pair(
         model,
         SubscriptionState.TalonValue(
             config = config,
             lastReadTalonValue = CanDeviceSnapshot.TalonSnapshot(
-                position = SignalValue(
-                    value = config.initialPosition.valueAsDouble,
-                    timestamp = config.initialPosition.timestamp,
-                    status = config.initialPosition.status,
-                ),
-                velocity = SignalValue(
-                    value = config.initialVelocity.valueAsDouble,
-                    timestamp = config.initialVelocity.timestamp,
-                    status = config.initialVelocity.status,
-                ),
+                position = statusSignalToSignalValue(position),
+                velocity = statusSignalToSignalValue(velocity),
             )
         )
     )
+}
 
 fun <TMessage, TModel> createInterval(
     model: RoboRioModel<TMessage, TModel>,
@@ -535,9 +504,9 @@ fun <TMessage, TModel> runReadCANcoder(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.CANcoderValue<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
-    val absolutePosSignal = state.config.cancoder.device.absolutePosition
-    val relativePosSignal = state.config.cancoder.device.positionSinceBoot
-    val velocitySignal = state.config.cancoder.device.velocity
+    val absolutePosSignal = state.config.token.device.absolutePosition
+    val relativePosSignal = state.config.token.device.positionSinceBoot
+    val velocitySignal = state.config.token.device.velocity
 
     val currentAbsolutePosTimestamp = absolutePosSignal.timestamp
     val currentRelativePosTimestamp = relativePosSignal.timestamp
@@ -580,12 +549,12 @@ fun <TMessage, TModel> runReadPigeon(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.PigeonValue<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
-    val yawRateSignal = state.config.pigeon.device.angularVelocityZWorld
-    val pitchRateSignal = state.config.pigeon.device.angularVelocityYWorld
-    val rollRateSignal = state.config.pigeon.device.angularVelocityXWorld
-    val yawSignal = state.config.pigeon.device.yaw
-    val pitchSignal = state.config.pigeon.device.pitch
-    val rollSignal = state.config.pigeon.device.roll
+    val yawRateSignal = state.config.token.device.angularVelocityZWorld
+    val pitchRateSignal = state.config.token.device.angularVelocityYWorld
+    val rollRateSignal = state.config.token.device.angularVelocityXWorld
+    val yawSignal = state.config.token.device.yaw
+    val pitchSignal = state.config.token.device.pitch
+    val rollSignal = state.config.token.device.roll
 
     val currentYawRateTimestamp = yawRateSignal.timestamp
     val currentPitchRateTimestamp = pitchRateSignal.timestamp
@@ -648,8 +617,8 @@ fun <TMessage, TModel> runReadTalonValue(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.TalonValue<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
-    val positionSignal = state.config.talon.device.position
-    val velocitySignal = state.config.talon.device.velocity
+    val positionSignal = state.config.token.device.position
+    val velocitySignal = state.config.token.device.velocity
 
     val currentPositionTimestamp = positionSignal.timestamp
     val currentVelocityTimestamp = velocitySignal.timestamp
