@@ -16,7 +16,9 @@ import teaforge.platform.RoboRio.Subscription.*
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
 import teaforge.utils.Result
 import edu.wpi.first.units.measure.*
+import edu.wpi.first.wpilibj.SerialPort
 import jdk.jshell.Snippet
+import java.io.Serial
 
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase =
@@ -246,6 +248,12 @@ sealed interface Subscription<out TMessage> {
         val initialVelocity: StatusSignal<AngularVelocity> get() = talon.device.velocity //rotations of rotor per sec
         val initialPosition: StatusSignal<Angle> get() = talon.device.position //rotations of rotor
     }
+
+    data class SerialValue<TMessage>(
+        val baudRate: Int,
+        val port: SerialPort.Port,
+        val message: (String) -> TMessage,
+    ) : Subscription<TMessage>
 
 }
 
@@ -539,6 +547,13 @@ fun <TMessage, TNewMessage> mapSubscription(
             WebSocket(
                 token = subscription.token,
                 message = { info -> mapFunction(subscription.message(info)) }
+            )
+        }
+        is SerialValue -> {
+            SerialValue(
+                baudRate = subscription.baudRate,
+                port = subscription.port,
+                message = { info -> mapFunction(subscription.message(info)) },
             )
         }
     }
