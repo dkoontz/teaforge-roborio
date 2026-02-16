@@ -221,18 +221,18 @@ data class SignalValue<T>(
 )
 
 sealed interface CanDeviceSnapshot {
-    data class TalonSnapshot internal constructor (
+    data class TalonSnapshot (
         val position: SignalValue<Double>,
         val velocity: SignalValue<Double>,
     ) : CanDeviceSnapshot
 
-    data class EncoderSnapshot internal constructor (
+    data class EncoderSnapshot (
         val absolutePos: SignalValue<Double>,
         val relativePos: SignalValue<Double>,
         val velocity: SignalValue<Double>,
     ) : CanDeviceSnapshot
 
-    data class PigeonSnapshot internal constructor (
+    data class PigeonSnapshot (
         val yawRate: SignalValue<Double>, //rotations per second
         val pitchRate: SignalValue<Double>, //rotations per second
         val rollRate: SignalValue<Double>, //rotations per second

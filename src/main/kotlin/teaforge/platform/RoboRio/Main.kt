@@ -1,17 +1,11 @@
 package teaforge.platform.RoboRio
 
-import com.ctre.phoenix6.StatusSignal
-import com.ctre.phoenix6.Timestamp
 import com.ctre.phoenix6.configs.CANcoderConfiguration
 import com.ctre.phoenix6.configs.Pigeon2Configuration
 import com.ctre.phoenix6.configs.TalonFXConfiguration
-import com.ctre.phoenix6.hardware.TalonFX
-import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.RobotBase
 import teaforge.ProgramConfig
 import teaforge.platform.RoboRio.Effect.*
-import teaforge.platform.RoboRio.Effect.InitCanDevice.*
-import teaforge.platform.RoboRio.Effect.InitCanDevice.InitMotor.*
 import teaforge.platform.RoboRio.Subscription.*
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
 import teaforge.utils.Result
@@ -220,34 +214,25 @@ sealed interface Subscription<out TMessage> {
     ) : Subscription<TMessage>
 
     data class CANcoderValue<TMessage>(
-        val cancoder: CanDeviceToken.EncoderToken,
+        val token: CanDeviceToken.EncoderToken,
         val message: (CanDeviceSnapshot.EncoderSnapshot) -> TMessage,
-    ) : Subscription<TMessage> {
-        val initialAbsolutePos: StatusSignal<Angle> get () = cancoder.device.absolutePosition
-        val initialRelativePos: StatusSignal<Angle> get() = cancoder.device.positionSinceBoot
-        val initialVelocity: StatusSignal<AngularVelocity> get() = cancoder.device.velocity
-    }
+    ) : Subscription<TMessage>
 
     data class PigeonValue<TMessage>(
-        val pigeon: CanDeviceToken.PigeonToken,
+        val token: CanDeviceToken.PigeonToken,
         val message: (CanDeviceSnapshot.PigeonSnapshot) -> TMessage,
-    ) : Subscription<TMessage> {
-        val initialYawRate: StatusSignal<AngularVelocity> get() = pigeon.device.angularVelocityZWorld
-        val initialPitchRate: StatusSignal<AngularVelocity> get() = pigeon.device.angularVelocityYWorld
-        val initialRollRate: StatusSignal<AngularVelocity> get() = pigeon.device.angularVelocityXWorld
-        val initialYaw: StatusSignal<Angle> get () = pigeon.device.yaw
-        val initialPitch: StatusSignal<Angle> get () = pigeon.device.pitch
-        val initialRoll: StatusSignal<Angle> get () = pigeon.device.roll
-
-    }
+    ) : Subscription<TMessage>
 
     data class TalonValue<TMessage>(
-        val talon: CanDeviceToken.MotorToken.TalonMotorToken,
+        val token: CanDeviceToken.MotorToken.TalonMotorToken,
         val message: (CanDeviceSnapshot.TalonSnapshot) -> TMessage
-    ) : Subscription<TMessage> {
-        val initialVelocity: StatusSignal<AngularVelocity> get() = talon.device.velocity //rotations of rotor per sec
-        val initialPosition: StatusSignal<Angle> get() = talon.device.position //rotations of rotor
-    }
+    ) : Subscription<TMessage>
+
+    data class SerialValue<TMessage>(
+        val baudRate: Int,
+        val port: SerialPort.Port,
+        val message: (String) -> TMessage,
+    ) : Subscription<TMessage>
 
     data class SerialValue<TMessage>(
         val baudRate: Int,
@@ -529,17 +514,17 @@ fun <TMessage, TNewMessage> mapSubscription(
             )
         is CANcoderValue ->
             CANcoderValue(
-                cancoder = subscription.cancoder,
+                token = subscription.token,
                 message = { snapshot -> mapFunction(subscription.message(snapshot)) },
             )
         is PigeonValue ->
             PigeonValue(
-                pigeon = subscription.pigeon,
+                token = subscription.token,
                 message = { snapshot -> mapFunction(subscription.message(snapshot)) },
             )
         is TalonValue -> {
             TalonValue(
-                talon = subscription.talon,
+                token = subscription.token,
                 message = { snapshot -> mapFunction(subscription.message(snapshot)) }
             )
         }

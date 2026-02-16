@@ -1,5 +1,6 @@
 package teaforge.platform.RoboRio.internal
 
+import com.ctre.phoenix6.StatusSignal
 import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.RobotState
@@ -8,6 +9,7 @@ import teaforge.platform.RoboRio.DioPort
 import teaforge.platform.RoboRio.DioPortState
 import teaforge.platform.RoboRio.PwmPort
 import teaforge.platform.RoboRio.RunningRobotState
+import teaforge.platform.RoboRio.SignalValue
 
 internal fun digitalIoPortToInt(port: DioPort): Int {
     return when (port) {
@@ -91,3 +93,10 @@ internal fun getRunningRobotState(): RunningRobotState {
 
     return state
 }
+
+fun <T> statusSignalToSignalValue(statusSignal: StatusSignal<T>) : SignalValue<Double> =
+    SignalValue(
+        value = statusSignal.valueAsDouble,
+        timestamp = statusSignal.timestamp,
+        status = statusSignal.status,
+    )
