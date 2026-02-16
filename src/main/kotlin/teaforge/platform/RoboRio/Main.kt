@@ -9,7 +9,10 @@ import teaforge.platform.RoboRio.Effect.*
 import teaforge.platform.RoboRio.Subscription.*
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
 import teaforge.utils.Result
+import edu.wpi.first.units.measure.*
 import edu.wpi.first.wpilibj.SerialPort
+import jdk.jshell.Snippet
+import java.io.Serial
 
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase =
@@ -223,6 +226,12 @@ sealed interface Subscription<out TMessage> {
     data class TalonValue<TMessage>(
         val token: CanDeviceToken.MotorToken.TalonMotorToken,
         val message: (CanDeviceSnapshot.TalonSnapshot) -> TMessage
+    ) : Subscription<TMessage>
+
+    data class SerialValue<TMessage>(
+        val baudRate: Int,
+        val port: SerialPort.Port,
+        val message: (String) -> TMessage,
     ) : Subscription<TMessage>
 
     data class SerialValue<TMessage>(

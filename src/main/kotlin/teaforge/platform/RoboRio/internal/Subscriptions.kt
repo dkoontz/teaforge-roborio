@@ -16,6 +16,7 @@ import teaforge.platform.RoboRio.HidValue
 import teaforge.platform.RoboRio.CanDeviceSnapshot
 import teaforge.platform.RoboRio.RunningRobotState
 import teaforge.platform.RoboRio.Subscription
+import teaforge.platform.RoboRio.internal.SubscriptionState
 import teaforge.utils.Maybe
 import teaforge.utils.map
 
