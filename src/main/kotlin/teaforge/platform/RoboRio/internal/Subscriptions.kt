@@ -516,16 +516,16 @@ fun <TMessage, TModel> runReadCANcoder(
                             currentRelativePosTimestamp.equals(state.lastReadCANcoderValue.relativePos.timestamp) &&
                             currentVelocityTimestamp.equals(state.lastReadCANcoderValue.velocity.timestamp))
 
-    return if (atLeastOneUpdated) {
+    return if (true) { // TODO set to asLeastOneUpdated as soon as we fix subscription deletion problem
         val newSnapshot = CanDeviceSnapshot.EncoderSnapshot(
             //TODO: convert to rotations? (max)
             absolutePos = SignalValue<Double>(
-                value = absolutePosSignal.valueAsDouble * 360, //degrees
+                value = absolutePosSignal.valueAsDouble, //degrees
                 timestamp = currentAbsolutePosTimestamp,
                 status = absolutePosSignal.status,
             ),
             relativePos = SignalValue<Double>(
-                value = relativePosSignal.valueAsDouble * 360, //degrees
+                value = relativePosSignal.valueAsDouble, //degrees
                 timestamp = currentRelativePosTimestamp,
                 status = relativePosSignal.status,
             ),
@@ -570,7 +570,7 @@ fun <TMessage, TModel> runReadPigeon(
                             currentPitchTimestamp.equals(state.lastReadPigeonValue.pitch.timestamp) &&
                             currentRollTimestamp.equals(state.lastReadPigeonValue.roll.timestamp))
 
-    return if (atLeastOneUpdated) {
+    return if (true) { // TODO set to asLeastOneUpdated as soon as we fix subscription deletion problem
         val newSnapshot = CanDeviceSnapshot.PigeonSnapshot(
                 yawRate = SignalValue(
                     value = yawRateSignal.valueAsDouble/360,
@@ -626,7 +626,7 @@ fun <TMessage, TModel> runReadTalonValue(
     val atLeastOneUpdated = !(currentPositionTimestamp.equals(state.lastReadTalonValue.position.timestamp) &&
                             currentVelocityTimestamp.equals(state.lastReadTalonValue.velocity.timestamp))
 
-    return if (atLeastOneUpdated) {
+    return if (true) { // TODO set to asLeastOneUpdated as soon as we fix subscription deletion problem
         val newSnapshot = CanDeviceSnapshot.TalonSnapshot(
             position = SignalValue<Double>(
                 //since we're returning both the timestamp and status in the message we can check if it's stale and its status(error) in the application layer
