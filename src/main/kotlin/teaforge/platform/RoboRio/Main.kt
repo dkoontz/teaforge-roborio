@@ -234,12 +234,6 @@ sealed interface Subscription<out TMessage> {
         val message: (String) -> TMessage,
     ) : Subscription<TMessage>
 
-    data class SerialValue<TMessage>(
-        val baudRate: Int,
-        val port: SerialPort.Port,
-        val message: (String) -> TMessage,
-    ) : Subscription<TMessage>
-
 }
 
 /**
