@@ -585,5 +585,24 @@ fun <TMessage, TModel> processEffect(
                 EffectResult.Sync(model, Maybe.Some(effect.message(result)))
             }
         }
+
+        is Effect.RunAsync<TMessage, *> -> {
+            fun <TOutput> runAsyncEffect(
+                model: RoboRioModel<TMessage, TModel>,
+                effect: Effect.RunAsync<TMessage, TOutput>,
+            ) : EffectResult<RoboRioModel<TMessage, TModel>, TMessage> {
+                return EffectResult.Async(
+                    updatedModel = model,
+                    completion = {
+                        val output: TOutput = effect.function();
+                        { model -> model to Maybe.Some(effect.message(output)) }
+                    }
+                )
+            }
+            runAsyncEffect(
+                model = model,
+                effect = effect,
+            )
+        }
     }
 }
