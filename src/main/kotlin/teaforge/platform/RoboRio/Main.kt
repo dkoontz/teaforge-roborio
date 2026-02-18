@@ -12,7 +12,9 @@ import teaforge.utils.Result
 import edu.wpi.first.units.measure.*
 import edu.wpi.first.wpilibj.SerialPort
 import jdk.jshell.Snippet
+import teaforge.utils.Maybe
 import java.io.Serial
+import kotlin.reflect.KFunction
 
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase =
@@ -158,6 +160,11 @@ sealed interface Effect<out TMessage> {
         val remotePort: UShort,
         val message: (Result<UShort, Error>) -> TMessage,
     ) : Effect<TMessage>
+
+    data class RunAsync<TMessage, TOutput>(
+        val function: () -> TOutput,
+        val message: (TOutput) -> TMessage,
+    ) : Effect<TMessage>
 }
 
 sealed interface Subscription<out TMessage> {
@@ -234,12 +241,6 @@ sealed interface Subscription<out TMessage> {
         val message: (String) -> TMessage,
     ) : Subscription<TMessage>
 
-    data class SerialValue<TMessage>(
-        val baudRate: Int,
-        val port: SerialPort.Port,
-        val message: (String) -> TMessage,
-    ) : Subscription<TMessage>
-
 }
 
 /**
@@ -285,7 +286,7 @@ sealed interface Subscription<out TMessage> {
  * @param mapFunction A function that converts the original message type to the new message type
  * @return A new Effect with the transformed message type
  */
-fun <TMessage, TNewMessage> mapEffect(
+fun <TMessage, TNewMessage, TOutput> mapEffect(
     effect: Effect<TMessage>,
     mapFunction: (TMessage) -> TNewMessage,
 ): Effect<TNewMessage> =
@@ -416,7 +417,24 @@ fun <TMessage, TNewMessage> mapEffect(
                 url = effect.url,
                 message = { token -> mapFunction(effect.message(token)) }
             )
+
+        is Effect.RunAsync<TMessage, *> -> {
+            fun <TOutput> mapRunAsync(
+                effect: Effect.RunAsync<TMessage, TOutput>,
+                mapFunction: (TMessage) -> TNewMessage
+            ): Effect.RunAsync<TNewMessage, TOutput> =
+                Effect.RunAsync(
+                    function = effect.function,
+                    message = { output -> mapFunction(effect.message(output)) }
+                )
+            mapRunAsync(
+                effect = effect,
+                mapFunction = mapFunction,
+            )
+        }
     }
+
+
 
 /**
  * Maps the message type of a Subscription to a new message type.
