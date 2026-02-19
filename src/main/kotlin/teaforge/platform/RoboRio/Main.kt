@@ -11,8 +11,8 @@ import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
 import teaforge.utils.Result
 import edu.wpi.first.units.measure.*
 import edu.wpi.first.wpilibj.SerialPort
-import jdk.jshell.Snippet
-import java.io.Serial
+import kotlin.reflect.KFunction1
+import kotlin.reflect.KFunction2
 
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase =
@@ -162,82 +162,75 @@ sealed interface Effect<out TMessage> {
 
 sealed interface Subscription<out TMessage> {
     data class Interval<TMessage>(
-        val millisecondsBetweenReads: Int,
-        val message: (Long) -> TMessage,
+        val message: KFunction1<Long, TMessage>,
     ) : Subscription<TMessage>
 
     data class WebSocket<TMessage>(
         val token: WebSocketToken,
-        val message: (String) -> TMessage
+        val message: KFunction1<String, TMessage>,
     ) : Subscription<TMessage>
 
     data class DigitalPortValue<TMessage>(
         val token: DigitalInputToken,
         val millisecondsBetweenReads: Int,
-        val message: (DioPortState) -> TMessage,
+        val message: KFunction1<DioPortState, TMessage>,
     ) : Subscription<TMessage>
 
     data class DigitalPortValueChanged<TMessage>(
         val token: DigitalInputToken,
-        val message: (DioPortState, DioPortState) -> TMessage,
+        val message: KFunction2<DioPortState, DioPortState, TMessage>,
     ) : Subscription<TMessage>
 
     data class AnalogPortValue<TMessage>(
         val token: AnalogInputToken,
         val millisecondsBetweenReads: Int,
         val useAverageValue: Boolean,
-        val message: (Double) -> TMessage,
+        val message: KFunction1<Double, TMessage>,
     ) : Subscription<TMessage>
 
     data class AnalogPortValueChanged<TMessage>(
         val token: AnalogInputToken,
         val useAverageValue: Boolean,
-        val message: (Double, Double) -> TMessage,
+        val message: KFunction2<Double, Double, TMessage>,
     ) : Subscription<TMessage>
 
     data class HidPortValue<TMessage>(
         val token: HidInputToken,
-        val message: (HidValue) -> TMessage,
+        val message: KFunction1<HidValue, TMessage>,
     ) : Subscription<TMessage>
 
     data class HidPortValueChanged<TMessage>(
         val token: HidInputToken,
-        val message: (HidValue, HidValue) -> TMessage,
+        val message: KFunction2<HidValue, HidValue, TMessage>,
     ) : Subscription<TMessage>
 
     data class RobotState<TMessage>(
-        val message: (RunningRobotState) -> TMessage,
+        val message: KFunction1<RunningRobotState, TMessage>,
     ) : Subscription<TMessage>
 
     data class RobotStateChanged<TMessage>(
-        val message: (RunningRobotState, RunningRobotState) -> TMessage,
+        val message: KFunction2<RunningRobotState, RunningRobotState, TMessage>,
     ) : Subscription<TMessage>
 
     data class CANcoderValue<TMessage>(
         val token: CanDeviceToken.EncoderToken,
-        val message: (CanDeviceSnapshot.EncoderSnapshot) -> TMessage,
+        val message: KFunction1<CanDeviceSnapshot.EncoderSnapshot, TMessage>,
     ) : Subscription<TMessage>
 
     data class PigeonValue<TMessage>(
         val token: CanDeviceToken.PigeonToken,
-        val message: (CanDeviceSnapshot.PigeonSnapshot) -> TMessage,
+        val message: KFunction1<CanDeviceSnapshot.PigeonSnapshot, TMessage>,
     ) : Subscription<TMessage>
 
     data class TalonValue<TMessage>(
         val token: CanDeviceToken.MotorToken.TalonMotorToken,
-        val message: (CanDeviceSnapshot.TalonSnapshot) -> TMessage
+        val message: KFunction1<CanDeviceSnapshot.TalonSnapshot, TMessage>
     ) : Subscription<TMessage>
 
     data class SerialValue<TMessage>(
         val baudRate: Int,
         val port: SerialPort.Port,
-        val message: (String) -> TMessage,
-    ) : Subscription<TMessage>
-
-    data class SerialValue<TMessage>(
-        val baudRate: Int,
-        val port: SerialPort.Port,
-        val message: (String) -> TMessage,
+        val message: KFunction1<String, TMessage>,
     ) : Subscription<TMessage>
 
 }
@@ -465,80 +458,111 @@ fun <TMessage, TNewMessage> mapSubscription(
     mapFunction: (TMessage) -> TNewMessage,
 ): Subscription<TNewMessage> =
     when (subscription) {
-        is Interval ->
+        is Interval -> {
+            fun message(elapsed: Long): TNewMessage = mapFunction(subscription.message(elapsed))
             Interval(
-                millisecondsBetweenReads = subscription.millisecondsBetweenReads,
-                message = { elapsed -> mapFunction(subscription.message(elapsed)) },
+                message = ::message,
             )
-        is DigitalPortValue ->
+        }
+        is DigitalPortValue -> {
+            fun message(value: DioPortState): TNewMessage = mapFunction(subscription.message(value))
             DigitalPortValue(
                 token = subscription.token,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
-                message = { value -> mapFunction(subscription.message(value)) },
+                message = ::message,
             )
-        is DigitalPortValueChanged ->
+        }
+        is DigitalPortValueChanged -> {
+            fun message(oldValue: DioPortState, newValue: DioPortState): TNewMessage =
+                mapFunction(subscription.message(oldValue, newValue))
             DigitalPortValueChanged(
                 token = subscription.token,
-                message = { oldValue, newValue -> mapFunction(subscription.message(oldValue, newValue)) },
+                message = ::message,
             )
-        is AnalogPortValue ->
+        }
+        is AnalogPortValue -> {
+            fun message(value: Double): TNewMessage = mapFunction(subscription.message(value))
             AnalogPortValue(
                 token = subscription.token,
                 millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 useAverageValue = subscription.useAverageValue,
-                message = { value -> mapFunction(subscription.message(value)) },
+                message = ::message,
             )
-        is AnalogPortValueChanged ->
+        }
+        is AnalogPortValueChanged -> {
+            fun message(oldValue: Double, newValue: Double): TNewMessage =
+                mapFunction(subscription.message(oldValue, newValue))
             AnalogPortValueChanged(
                 token = subscription.token,
                 useAverageValue = subscription.useAverageValue,
-                message = { oldValue, newValue -> mapFunction(subscription.message(oldValue, newValue)) },
+                message = ::message,
             )
-        is HidPortValue ->
+        }
+        is HidPortValue -> {
+            fun message(value: HidValue): TNewMessage = mapFunction(subscription.message(value))
             HidPortValue(
                 token = subscription.token,
-                message = { value -> mapFunction(subscription.message(value)) },
+                message = ::message,
             )
-        is HidPortValueChanged ->
+        }
+        is HidPortValueChanged -> {
+            fun message(oldValue: HidValue, newValue: HidValue): TNewMessage =
+                mapFunction(subscription.message(oldValue, newValue))
             HidPortValueChanged(
                 token = subscription.token,
-                message = { oldValue, newValue -> mapFunction(subscription.message(oldValue, newValue)) },
+                message = ::message,
             )
-        is RobotState ->
+        }
+        is RobotState -> {
+            fun message(state: RunningRobotState): TNewMessage = mapFunction(subscription.message(state))
             RobotState(
-                message = { state -> mapFunction(subscription.message(state)) },
+                message = ::message,
             )
-        is RobotStateChanged ->
+        }
+        is RobotStateChanged -> {
+            fun message(oldState: RunningRobotState, newState: RunningRobotState): TNewMessage =
+                mapFunction(subscription.message(oldState, newState))
             RobotStateChanged(
-                message = { oldState, newState -> mapFunction(subscription.message(oldState, newState)) },
+                message = ::message,
             )
-        is CANcoderValue ->
+        }
+        is CANcoderValue -> {
+            fun message(snapshot: CanDeviceSnapshot.EncoderSnapshot): TNewMessage =
+                mapFunction(subscription.message(snapshot))
             CANcoderValue(
                 token = subscription.token,
-                message = { snapshot -> mapFunction(subscription.message(snapshot)) },
+                message = ::message,
             )
-        is PigeonValue ->
+        }
+        is PigeonValue -> {
+            fun message(snapshot: CanDeviceSnapshot.PigeonSnapshot): TNewMessage =
+                mapFunction(subscription.message(snapshot))
             PigeonValue(
                 token = subscription.token,
-                message = { snapshot -> mapFunction(subscription.message(snapshot)) },
+                message = ::message,
             )
+        }
         is TalonValue -> {
+            fun message(snapshot: CanDeviceSnapshot.TalonSnapshot): TNewMessage =
+                mapFunction(subscription.message(snapshot))
             TalonValue(
                 token = subscription.token,
-                message = { snapshot -> mapFunction(subscription.message(snapshot)) }
+                message = ::message,
             )
         }
         is WebSocket -> {
+            fun message(info: String): TNewMessage = mapFunction(subscription.message(info))
             WebSocket(
                 token = subscription.token,
-                message = { info -> mapFunction(subscription.message(info)) }
+                message = ::message,
             )
         }
         is SerialValue -> {
+            fun message(info: String): TNewMessage = mapFunction(subscription.message(info))
             SerialValue(
                 baudRate = subscription.baudRate,
                 port = subscription.port,
-                message = { info -> mapFunction(subscription.message(info)) },
+                message = ::message,
             )
         }
     }

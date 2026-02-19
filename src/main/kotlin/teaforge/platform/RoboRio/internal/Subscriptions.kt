@@ -23,7 +23,7 @@ import teaforge.utils.map
 sealed interface SubscriptionState<TMessage> {
     data class Interval<TMessage>(
         val config: Subscription.Interval<TMessage>,
-        val nextReadTimeMicroseconds: Long,
+        val lastReadTimeMicroseconds: Long,
     ) : SubscriptionState<TMessage>
 
     data class WebSocket<TMessage>(
@@ -292,12 +292,12 @@ fun <TMessage, TModel> createInterval(
     model: RoboRioModel<TMessage, TModel>,
     config: Subscription.Interval<TMessage>,
 ): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
-    val currentTime = HALUtil.getFPGATime()
+    val currentTimeMicroseconds = HALUtil.getFPGATime()
     return Pair(
         model,
         SubscriptionState.Interval(
             config = config,
-            nextReadTimeMicroseconds = (config.millisecondsBetweenReads * 1_000L) + currentTime,
+            lastReadTimeMicroseconds = currentTimeMicroseconds,
         ),
     )
 }
@@ -655,20 +655,11 @@ fun <TMessage, TModel> runReadInterval(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.Interval<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
-    val currentMicroseconds = HALUtil.getFPGATime()
-    return if (currentMicroseconds >= state.nextReadTimeMicroseconds) {
-        val elapsedMicroseconds = currentMicroseconds - state.nextReadTimeMicroseconds
-
-        val intervalMicroseconds = state.config.millisecondsBetweenReads * 1_000L
-        val intervalsMissed = elapsedMicroseconds / intervalMicroseconds
-
-        val newNextReadTime = state.nextReadTimeMicroseconds + (intervalMicroseconds * (intervalsMissed + 1))
-
-        val updatedState = state.copy(nextReadTimeMicroseconds = newNextReadTime)
-        Triple(model, updatedState, Maybe.Some(state.config.message(elapsedMicroseconds / 1_000L)))
-    } else {
-        Triple(model, state, Maybe.None)
-    }
+    val currentMicroseconds: Long = HALUtil.getFPGATime()
+    val elapsedMicroseconds: Long = currentMicroseconds - state.lastReadTimeMicroseconds
+    val message: TMessage = state.config.message(elapsedMicroseconds / 1_000L)
+    val newState = state.copy(lastReadTimeMicroseconds = currentMicroseconds)
+    return Triple(model, newState, Maybe.Some(message))
 }
 
 fun <TMessage, TModel> runReadWebSocket(

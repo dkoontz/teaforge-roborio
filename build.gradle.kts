@@ -41,6 +41,7 @@ dependencies {
     implementation("io.ktor:ktor-client-websockets:2.3.7")
     implementation("io.ktor:ktor-client-cio:2.3.7")
 
+    implementation(kotlin("reflect"))
     testImplementation(kotlin("test"))
 }
 
