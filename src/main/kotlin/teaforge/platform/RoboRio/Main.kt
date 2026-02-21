@@ -4,18 +4,24 @@ import com.ctre.phoenix6.configs.CANcoderConfiguration
 import com.ctre.phoenix6.configs.Pigeon2Configuration
 import com.ctre.phoenix6.configs.TalonFXConfiguration
 import edu.wpi.first.wpilibj.RobotBase
+import edu.wpi.first.wpilibj.SerialPort
 import teaforge.ProgramConfig
-import teaforge.platform.RoboRio.Effect.*
-import teaforge.platform.RoboRio.Subscription.*
+import teaforge.platform.RoboRio.Subscription.AnalogPortValue
+import teaforge.platform.RoboRio.Subscription.AnalogPortValueChanged
+import teaforge.platform.RoboRio.Subscription.CANcoderValue
+import teaforge.platform.RoboRio.Subscription.DigitalPortValue
+import teaforge.platform.RoboRio.Subscription.DigitalPortValueChanged
+import teaforge.platform.RoboRio.Subscription.HidPortValue
+import teaforge.platform.RoboRio.Subscription.HidPortValueChanged
+import teaforge.platform.RoboRio.Subscription.Interval
+import teaforge.platform.RoboRio.Subscription.PigeonValue
+import teaforge.platform.RoboRio.Subscription.RobotState
+import teaforge.platform.RoboRio.Subscription.RobotStateChanged
+import teaforge.platform.RoboRio.Subscription.SerialValue
+import teaforge.platform.RoboRio.Subscription.TalonValue
+import teaforge.platform.RoboRio.Subscription.WebSocket
 import teaforge.platform.RoboRio.internal.TimedRobotBasedPlatform
 import teaforge.utils.Result
-import edu.wpi.first.units.measure.*
-import edu.wpi.first.wpilibj.SerialPort
-import jdk.jshell.Snippet
-import teaforge.utils.Maybe
-import java.io.Serial
-import kotlin.reflect.KFunction
-
 
 fun <TMessage, TModel> timedRobotProgram(program: RoboRioProgram<TMessage, TModel>): RobotBase =
     TimedRobotBasedPlatform<TMessage, TModel>(program)
@@ -84,27 +90,27 @@ sealed interface Effect<out TMessage> {
         val message: (Result<HidInputToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
-    sealed interface InitCanDevice<TMessage>  : Effect<TMessage> {
+    sealed interface InitCanDevice<TMessage> : Effect<TMessage> {
         sealed interface InitMotor<TMessage> : InitCanDevice<TMessage> {
             data class Neo<TMessage>(
                 val id: Int,
-                val message: (Int, Result<CanDeviceToken, Error>) -> TMessage
+                val message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
             ) : InitMotor<TMessage>
 
             data class Talon<TMessage>(
                 val id: Int,
-                val message: (Int, Result<CanDeviceToken, Error>) -> TMessage
+                val message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
             ) : InitMotor<TMessage>
         }
 
         data class Encoder<TMessage>(
             val id: Int,
-            val message: ( Int, Result<CanDeviceToken, Error>) -> TMessage
+            val message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
         ) : InitCanDevice<TMessage>
 
         data class Pigeon<TMessage>(
             val id: Int,
-            val message: ( Int, Result<CanDeviceToken, Error>) -> TMessage
+            val message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
         ) : InitCanDevice<TMessage>
     }
 
@@ -112,19 +118,19 @@ sealed interface Effect<out TMessage> {
         data class Talon<TMessage>(
             val talon: CanDeviceToken.MotorToken.TalonMotorToken,
             val config: TalonFXConfiguration,
-            val message: (Result<CanDeviceToken.MotorToken.TalonMotorToken, Error>) -> TMessage
+            val message: (Result<CanDeviceToken.MotorToken.TalonMotorToken, Error>) -> TMessage,
         ) : ConfigCanDevice<TMessage>
 
         data class Encoder<TMessage>(
             val cancoder: CanDeviceToken.EncoderToken,
             val config: CANcoderConfiguration,
-            val message: (Result<CanDeviceToken.EncoderToken, Error>) -> TMessage
+            val message: (Result<CanDeviceToken.EncoderToken, Error>) -> TMessage,
         ) : ConfigCanDevice<TMessage>
 
         data class Pigeon<TMessage>(
             val pigeon: CanDeviceToken.PigeonToken,
             val config: Pigeon2Configuration,
-            val message: (Result<CanDeviceToken.PigeonToken, Error>) -> TMessage
+            val message: (Result<CanDeviceToken.PigeonToken, Error>) -> TMessage,
         ) : ConfigCanDevice<TMessage>
     }
 
@@ -175,7 +181,7 @@ sealed interface Subscription<out TMessage> {
 
     data class WebSocket<TMessage>(
         val token: WebSocketToken,
-        val message: (String) -> TMessage
+        val message: (String) -> TMessage,
     ) : Subscription<TMessage>
 
     data class DigitalPortValue<TMessage>(
@@ -232,7 +238,7 @@ sealed interface Subscription<out TMessage> {
 
     data class TalonValue<TMessage>(
         val token: CanDeviceToken.MotorToken.TalonMotorToken,
-        val message: (CanDeviceSnapshot.TalonSnapshot) -> TMessage
+        val message: (CanDeviceSnapshot.TalonSnapshot) -> TMessage,
     ) : Subscription<TMessage>
 
     data class SerialValue<TMessage>(
@@ -240,7 +246,6 @@ sealed interface Subscription<out TMessage> {
         val port: SerialPort.Port,
         val message: (String) -> TMessage,
     ) : Subscription<TMessage>
-
 }
 
 /**
@@ -352,35 +357,35 @@ fun <TMessage, TNewMessage, TOutput> mapEffect(
         is Effect.InitCanDevice.InitMotor.Neo ->
             Effect.InitCanDevice.InitMotor.Neo(
                 id = effect.id,
-                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) }
+                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )
         is Effect.InitCanDevice.Encoder ->
             Effect.InitCanDevice.Encoder(
                 id = effect.id,
-                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) }
+                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )
         is Effect.InitCanDevice.Pigeon ->
             Effect.InitCanDevice.Pigeon(
                 id = effect.id,
-                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) }
+                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )
         is Effect.ConfigCanDevice.Talon ->
             Effect.ConfigCanDevice.Talon(
                 talon = effect.talon,
                 config = effect.config,
-                message = { result -> mapFunction(effect.message(result))}
+                message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.ConfigCanDevice.Encoder ->
             Effect.ConfigCanDevice.Encoder(
                 cancoder = effect.cancoder,
                 config = effect.config,
-                message = { result -> mapFunction(effect.message(result)) }
+                message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.ConfigCanDevice.Pigeon ->
             Effect.ConfigCanDevice.Pigeon(
                 pigeon = effect.pigeon,
                 config = effect.config,
-                message = { result -> mapFunction(effect.message(result))}
+                message = { result -> mapFunction(effect.message(result)) },
             )
         is Effect.SetCanMotorSpeed -> effect
         is Effect.ReadFile ->
@@ -409,23 +414,23 @@ fun <TMessage, TNewMessage, TOutput> mapEffect(
                 port = effect.port,
                 remoteName = effect.remoteName,
                 remotePort = effect.remotePort,
-                message = { result -> mapFunction(effect.message(result)) }
+                message = { result -> mapFunction(effect.message(result)) },
             )
 
         is Effect.InitWebSocket ->
-            InitWebSocket(
+            Effect.InitWebSocket(
                 url = effect.url,
-                message = { token -> mapFunction(effect.message(token)) }
+                message = { token -> mapFunction(effect.message(token)) },
             )
 
         is Effect.RunAsync<TMessage, *> -> {
             fun <TOutput> mapRunAsync(
                 effect: Effect.RunAsync<TMessage, TOutput>,
-                mapFunction: (TMessage) -> TNewMessage
+                mapFunction: (TMessage) -> TNewMessage,
             ): Effect.RunAsync<TNewMessage, TOutput> =
                 Effect.RunAsync(
                     function = effect.function,
-                    message = { output -> mapFunction(effect.message(output)) }
+                    message = { output -> mapFunction(effect.message(output)) },
                 )
             mapRunAsync(
                 effect = effect,
@@ -433,8 +438,6 @@ fun <TMessage, TNewMessage, TOutput> mapEffect(
             )
         }
     }
-
-
 
 /**
  * Maps the message type of a Subscription to a new message type.
@@ -543,13 +546,13 @@ fun <TMessage, TNewMessage> mapSubscription(
         is TalonValue -> {
             TalonValue(
                 token = subscription.token,
-                message = { snapshot -> mapFunction(subscription.message(snapshot)) }
+                message = { snapshot -> mapFunction(subscription.message(snapshot)) },
             )
         }
         is WebSocket -> {
             WebSocket(
                 token = subscription.token,
-                message = { info -> mapFunction(subscription.message(info)) }
+                message = { info -> mapFunction(subscription.message(info)) },
             )
         }
         is SerialValue -> {

@@ -1,22 +1,24 @@
 package teaforge.platform.RoboRio.internal
 
 import com.ctre.phoenix6.StatusSignal
-import teaforge.platform.RoboRio.*
 import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.units.measure.Angle
 import edu.wpi.first.units.measure.AngularVelocity
 import edu.wpi.first.wpilibj.GenericHID
 import edu.wpi.first.wpilibj.SerialPort
-import io.ktor.client.*
-import io.ktor.client.plugins.websocket.*
-import io.ktor.websocket.*
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.websocket.ClientWebSocketSession
+import io.ktor.websocket.CloseReason
+import io.ktor.websocket.Frame
+import io.ktor.websocket.close
+import io.ktor.websocket.readText
 import kotlinx.coroutines.runBlocking
+import teaforge.platform.RoboRio.CanDeviceSnapshot
 import teaforge.platform.RoboRio.DioPortState
 import teaforge.platform.RoboRio.HidValue
-import teaforge.platform.RoboRio.CanDeviceSnapshot
 import teaforge.platform.RoboRio.RunningRobotState
+import teaforge.platform.RoboRio.SignalValue
 import teaforge.platform.RoboRio.Subscription
-import teaforge.platform.RoboRio.internal.SubscriptionState
 import teaforge.utils.Maybe
 import teaforge.utils.map
 
@@ -74,12 +76,12 @@ sealed interface SubscriptionState<TMessage> {
 
     data class CANcoderValue<TMessage>(
         val config: Subscription.CANcoderValue<TMessage>,
-        val lastReadCANcoderValue: CanDeviceSnapshot.EncoderSnapshot
+        val lastReadCANcoderValue: CanDeviceSnapshot.EncoderSnapshot,
     ) : SubscriptionState<TMessage>
 
     data class PigeonValue<TMessage>(
         val config: Subscription.PigeonValue<TMessage>,
-        val lastReadPigeonValue: CanDeviceSnapshot.PigeonSnapshot
+        val lastReadPigeonValue: CanDeviceSnapshot.PigeonSnapshot,
     ) : SubscriptionState<TMessage>
 
     data class TalonValue<TMessage>(
@@ -226,14 +228,16 @@ fun <TMessage, TModel> createCANcoderValueState(
     val relativePosition: StatusSignal<Angle> = cancoder.position
     val velocity: StatusSignal<AngularVelocity> = cancoder.velocity
 
-    val subscriptionState = SubscriptionState.CANcoderValue(
-        config = config,
-        lastReadCANcoderValue = CanDeviceSnapshot.EncoderSnapshot(
-            absolutePos = statusSignalToSignalValue(absolutePosition),
-            relativePos = statusSignalToSignalValue(relativePosition),
-            velocity = statusSignalToSignalValue(velocity),
+    val subscriptionState =
+        SubscriptionState.CANcoderValue(
+            config = config,
+            lastReadCANcoderValue =
+                CanDeviceSnapshot.EncoderSnapshot(
+                    absolutePos = statusSignalToSignalValue(absolutePosition),
+                    relativePos = statusSignalToSignalValue(relativePosition),
+                    velocity = statusSignalToSignalValue(velocity),
+                ),
         )
-    )
 
     return model to subscriptionState
 }
@@ -255,14 +259,15 @@ fun <TMessage, TModel> createPigeonValueState(
         model,
         SubscriptionState.PigeonValue(
             config = config,
-            lastReadPigeonValue = CanDeviceSnapshot.PigeonSnapshot(
-                yawRate = statusSignalToSignalValue(yawRate),
-                pitchRate = statusSignalToSignalValue(pitchRate),
-                rollRate = statusSignalToSignalValue(rollRate),
-                yaw = statusSignalToSignalValue(yaw),
-                pitch = statusSignalToSignalValue(pitch),
-                roll = statusSignalToSignalValue(roll),
-            )
+            lastReadPigeonValue =
+                CanDeviceSnapshot.PigeonSnapshot(
+                    yawRate = statusSignalToSignalValue(yawRate),
+                    pitchRate = statusSignalToSignalValue(pitchRate),
+                    rollRate = statusSignalToSignalValue(rollRate),
+                    yaw = statusSignalToSignalValue(yaw),
+                    pitch = statusSignalToSignalValue(pitch),
+                    roll = statusSignalToSignalValue(roll),
+                ),
         ),
     )
 }
@@ -280,11 +285,12 @@ fun <TMessage, TModel> createTalonValueState(
         model,
         SubscriptionState.TalonValue(
             config = config,
-            lastReadTalonValue = CanDeviceSnapshot.TalonSnapshot(
-                position = statusSignalToSignalValue(position),
-                velocity = statusSignalToSignalValue(velocity),
-            )
-        )
+            lastReadTalonValue =
+                CanDeviceSnapshot.TalonSnapshot(
+                    position = statusSignalToSignalValue(position),
+                    velocity = statusSignalToSignalValue(velocity),
+                ),
+        ),
     )
 }
 
@@ -311,7 +317,7 @@ fun <TMessage, TModel> createWebSocket(
         SubscriptionState.WebSocket(
             config = config,
             session = config.token.session,
-            client = config.token.client
+            client = config.token.client,
         ),
     )
 }
@@ -328,8 +334,6 @@ fun <TMessage, TModel> createSerialState(
         ),
     )
 }
-
-
 
 fun <TMessage, TModel> processSubscription(
     model: RoboRioModel<TMessage, TModel>,
@@ -400,10 +404,14 @@ fun <TMessage, TModel> runReadSerialValue(
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
     val info: String? = state.reader.readString()
 
-    val message: Maybe<TMessage> = info?.let {
-        if (it.isNotEmpty()) Maybe.Some(state.config.message(it))
-        else Maybe.None
-    } ?: Maybe.None
+    val message: Maybe<TMessage> =
+        info?.let {
+            if (it.isNotEmpty()) {
+                Maybe.Some(state.config.message(it))
+            } else {
+                Maybe.None
+            }
+        } ?: Maybe.None
 
     return Triple(model, state, message)
 }
@@ -513,29 +521,39 @@ fun <TMessage, TModel> runReadCANcoder(
     val currentRelativePosTimestamp = relativePosSignal.timestamp
     val currentVelocityTimestamp = velocitySignal.timestamp
 
-    val atLeastOneUpdated = !(currentAbsolutePosTimestamp.equals(state.lastReadCANcoderValue.absolutePos.timestamp) &&
-                            currentRelativePosTimestamp.equals(state.lastReadCANcoderValue.relativePos.timestamp) &&
-                            currentVelocityTimestamp.equals(state.lastReadCANcoderValue.velocity.timestamp))
+    val atLeastOneUpdated =
+        !(
+            currentAbsolutePosTimestamp.equals(state.lastReadCANcoderValue.absolutePos.timestamp) &&
+                currentRelativePosTimestamp.equals(state.lastReadCANcoderValue.relativePos.timestamp) &&
+                currentVelocityTimestamp.equals(state.lastReadCANcoderValue.velocity.timestamp)
+        )
 
     return if (true) { // TODO set to asLeastOneUpdated as soon as we fix subscription deletion problem
-        val newSnapshot = CanDeviceSnapshot.EncoderSnapshot(
-            //TODO: convert to rotations? (max)
-            absolutePos = SignalValue<Double>(
-                value = absolutePosSignal.valueAsDouble, //degrees
-                timestamp = currentAbsolutePosTimestamp,
-                status = absolutePosSignal.status,
-            ),
-            relativePos = SignalValue<Double>(
-                value = relativePosSignal.valueAsDouble, //degrees
-                timestamp = currentRelativePosTimestamp,
-                status = relativePosSignal.status,
-            ),
-            velocity = SignalValue<Double>(
-                value = velocitySignal.valueAsDouble, //rotations per sec
-                timestamp = currentVelocityTimestamp,
-                status = velocitySignal.status,
+        val newSnapshot =
+            CanDeviceSnapshot.EncoderSnapshot(
+                // TODO: convert to rotations? (max)
+                absolutePos =
+                    SignalValue<Double>(
+                        // degrees
+                        value = absolutePosSignal.valueAsDouble,
+                        timestamp = currentAbsolutePosTimestamp,
+                        status = absolutePosSignal.status,
+                    ),
+                relativePos =
+                    SignalValue<Double>(
+                        // degrees
+                        value = relativePosSignal.valueAsDouble,
+                        timestamp = currentRelativePosTimestamp,
+                        status = relativePosSignal.status,
+                    ),
+                velocity =
+                    SignalValue<Double>(
+                        // rotations per sec
+                        value = velocitySignal.valueAsDouble,
+                        timestamp = currentVelocityTimestamp,
+                        status = velocitySignal.status,
+                    ),
             )
-        )
         val updatedState =
             state.copy(
                 lastReadCANcoderValue = newSnapshot,
@@ -564,49 +582,60 @@ fun <TMessage, TModel> runReadPigeon(
     val currentPitchTimestamp = pitchSignal.timestamp
     val currentRollTimestamp = rollSignal.timestamp
 
-    val atLeastOneUpdated = !(currentYawRateTimestamp.equals(state.lastReadPigeonValue.yawRate.timestamp) &&
-                            currentPitchRateTimestamp.equals(state.lastReadPigeonValue.pitchRate.timestamp) &&
-                            currentRollRateTimestamp.equals(state.lastReadPigeonValue.rollRate.timestamp) &&
-                            currentYawTimestamp.equals(state.lastReadPigeonValue.yaw.timestamp) &&
-                            currentPitchTimestamp.equals(state.lastReadPigeonValue.pitch.timestamp) &&
-                            currentRollTimestamp.equals(state.lastReadPigeonValue.roll.timestamp))
+    val atLeastOneUpdated =
+        !(
+            currentYawRateTimestamp.equals(state.lastReadPigeonValue.yawRate.timestamp) &&
+                currentPitchRateTimestamp.equals(state.lastReadPigeonValue.pitchRate.timestamp) &&
+                currentRollRateTimestamp.equals(state.lastReadPigeonValue.rollRate.timestamp) &&
+                currentYawTimestamp.equals(state.lastReadPigeonValue.yaw.timestamp) &&
+                currentPitchTimestamp.equals(state.lastReadPigeonValue.pitch.timestamp) &&
+                currentRollTimestamp.equals(state.lastReadPigeonValue.roll.timestamp)
+        )
 
     return if (true) { // TODO set to asLeastOneUpdated as soon as we fix subscription deletion problem
-        val newSnapshot = CanDeviceSnapshot.PigeonSnapshot(
-                yawRate = SignalValue(
-                    value = yawRateSignal.valueAsDouble/360,
-                    timestamp = yawRateSignal.timestamp,
-                    status = yawRateSignal.status,
-                ),
-                pitchRate = SignalValue(
-                    value = pitchRateSignal.valueAsDouble/360,
-                    timestamp = pitchRateSignal.timestamp,
-                    status = pitchRateSignal.status,
-                ),
-                rollRate = SignalValue(
-                    value = rollRateSignal.valueAsDouble/360,
-                    timestamp = rollRateSignal.timestamp,
-                    status = rollRateSignal.status,
-                ),
-                yaw = SignalValue(
-                    value = yawSignal.valueAsDouble/360,
-                    timestamp = yawSignal.timestamp,
-                    status = yawSignal.status,
-                ),
-                pitch = SignalValue(
-                    value = pitchSignal.valueAsDouble/360,
-                    timestamp = pitchSignal.timestamp,
-                    status = pitchSignal.status,
-                ),
-                roll = SignalValue(
-                    value = rollSignal.valueAsDouble/360,
-                    timestamp = rollSignal.timestamp,
-                    status = rollSignal.status,
-                ),
-        )
-        val updatedState = state.copy(
-            lastReadPigeonValue = newSnapshot,
-        )
+        val newSnapshot =
+            CanDeviceSnapshot.PigeonSnapshot(
+                yawRate =
+                    SignalValue(
+                        value = yawRateSignal.valueAsDouble / 360,
+                        timestamp = yawRateSignal.timestamp,
+                        status = yawRateSignal.status,
+                    ),
+                pitchRate =
+                    SignalValue(
+                        value = pitchRateSignal.valueAsDouble / 360,
+                        timestamp = pitchRateSignal.timestamp,
+                        status = pitchRateSignal.status,
+                    ),
+                rollRate =
+                    SignalValue(
+                        value = rollRateSignal.valueAsDouble / 360,
+                        timestamp = rollRateSignal.timestamp,
+                        status = rollRateSignal.status,
+                    ),
+                yaw =
+                    SignalValue(
+                        value = yawSignal.valueAsDouble / 360,
+                        timestamp = yawSignal.timestamp,
+                        status = yawSignal.status,
+                    ),
+                pitch =
+                    SignalValue(
+                        value = pitchSignal.valueAsDouble / 360,
+                        timestamp = pitchSignal.timestamp,
+                        status = pitchSignal.status,
+                    ),
+                roll =
+                    SignalValue(
+                        value = rollSignal.valueAsDouble / 360,
+                        timestamp = rollSignal.timestamp,
+                        status = rollSignal.status,
+                    ),
+            )
+        val updatedState =
+            state.copy(
+                lastReadPigeonValue = newSnapshot,
+            )
         Triple(model, updatedState, Maybe.Some(state.config.message(newSnapshot)))
     } else {
         Triple(model, state, Maybe.None)
@@ -614,7 +643,7 @@ fun <TMessage, TModel> runReadPigeon(
 }
 
 fun <TMessage, TModel> runReadTalonValue(
-    //not thread safe, don't use in multiple threads
+    // not thread safe, don't use in multiple threads
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.TalonValue<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
@@ -624,23 +653,29 @@ fun <TMessage, TModel> runReadTalonValue(
     val currentPositionTimestamp = positionSignal.timestamp
     val currentVelocityTimestamp = velocitySignal.timestamp
 
-    val atLeastOneUpdated = !(currentPositionTimestamp.equals(state.lastReadTalonValue.position.timestamp) &&
-                            currentVelocityTimestamp.equals(state.lastReadTalonValue.velocity.timestamp))
+    val atLeastOneUpdated =
+        !(
+            currentPositionTimestamp.equals(state.lastReadTalonValue.position.timestamp) &&
+                currentVelocityTimestamp.equals(state.lastReadTalonValue.velocity.timestamp)
+        )
 
     return if (true) { // TODO set to asLeastOneUpdated as soon as we fix subscription deletion problem
-        val newSnapshot = CanDeviceSnapshot.TalonSnapshot(
-            position = SignalValue<Double>(
-                //since we're returning both the timestamp and status in the message we can check if it's stale and its status(error) in the application layer
-                value = positionSignal.valueAsDouble,
-                timestamp = currentPositionTimestamp,
-                status = positionSignal.status,
-            ),
-            velocity = SignalValue<Double>(
-                value = velocitySignal.valueAsDouble,
-                timestamp = currentVelocityTimestamp,
-                status = velocitySignal.status,
-            ),
-        )
+        val newSnapshot =
+            CanDeviceSnapshot.TalonSnapshot(
+                position =
+                    SignalValue<Double>(
+                        // since we're returning both the timestamp and status in the message we can check if it's stale and its status(error) in the application layer
+                        value = positionSignal.valueAsDouble,
+                        timestamp = currentPositionTimestamp,
+                        status = positionSignal.status,
+                    ),
+                velocity =
+                    SignalValue<Double>(
+                        value = velocitySignal.valueAsDouble,
+                        timestamp = currentVelocityTimestamp,
+                        status = velocitySignal.status,
+                    ),
+            )
         val updatedState =
             state.copy(
                 lastReadTalonValue = newSnapshot,
@@ -675,9 +710,10 @@ fun <TMessage, TModel> runReadWebSocket(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.WebSocket<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
-    val read: Maybe<String> = state.session.incoming.tryReceive().getOrNull()?.let { frame ->
-        (frame as? Frame.Text)?.let{ Maybe.Some(it.readText()) } ?: Maybe.None
-    } ?: Maybe.None
+    val read: Maybe<String> =
+        state.session.incoming.tryReceive().getOrNull()?.let { frame ->
+            (frame as? Frame.Text)?.let { Maybe.Some(it.readText()) } ?: Maybe.None
+        } ?: Maybe.None
 
     val message: Maybe<TMessage> = read.map { state.config.message(it) }
 
@@ -738,7 +774,7 @@ fun <TMessage, TModel> runReadHidPortChanged(
     // Compare arrays to detect changes
     val hasChanged =
         !newValue.axisValues.contentEquals(state.lastReadValue.axisValues) ||
-                !newValue.buttonValues.contentEquals(state.lastReadValue.buttonValues)
+            !newValue.buttonValues.contentEquals(state.lastReadValue.buttonValues)
 
     return if (hasChanged) {
         val updatedState = state.copy(lastReadValue = newValue)
@@ -751,7 +787,7 @@ fun <TMessage, TModel> runReadHidPortChanged(
 fun <TMessage, TModel> closeWebSocket(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.WebSocket<TMessage>,
-) : RoboRioModel<TMessage, TModel> {
+): RoboRioModel<TMessage, TModel> {
     runBlocking {
         state.session.close(CloseReason(CloseReason.Codes.NORMAL, "End Program"))
     }
@@ -762,7 +798,7 @@ fun <TMessage, TModel> closeWebSocket(
 fun <TMessage, TModel> closeSerial(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.SerialValue<TMessage>,
-) : RoboRioModel<TMessage, TModel> {
+): RoboRioModel<TMessage, TModel> {
     state.reader.close()
     return model
 }
