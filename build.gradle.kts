@@ -8,7 +8,7 @@ plugins {
 
 project.group = "io.github.dkoontz"
 
-project.version = "0.1.5"
+project.version = "0.1.7"
 
 repositories {
     mavenCentral()
@@ -21,7 +21,7 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib"))
 
-    api(files("libs/teaforge-0.1.5.jar"))
+    api(files("libs/teaforge-0.1.8.jar"))
 
     implementation("edu.wpi.first.wpinet:wpinet-java:2026.1.1")
     implementation("edu.wpi.first.wpilibj:wpilibj-java:2026.1.1")
@@ -79,7 +79,7 @@ githubRelease {
     token(System.getenv("GITHUB_TOKEN") ?: "")
     owner.set("dkoontz")
     repo.set(project.name)
-    tagName.set("${project.version}")
+    tagName.set("v${project.version}")
     releaseName.set("Release ${project.version}")
     targetCommitish.set("main")
     body.set("Automated release for version ${project.version}")
@@ -93,9 +93,7 @@ tasks.named("githubRelease") { dependsOn("compileKotlin") }
 tasks.named("publish") { dependsOn("compileKotlin") }
 
 // Run ktlint formatting before compilation
-tasks.named("compileKotlin") { dependsOn("ktlintFormat") }
-
-tasks.named("compileTestKotlin") { dependsOn("ktlintFormat") }
+tasks.named("build") { dependsOn("ktlintFormat") }
 
 // Install git pre-push hook that works cross-platform
 tasks.register("installGitHooks") {

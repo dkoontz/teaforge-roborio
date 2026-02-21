@@ -9,6 +9,7 @@ import com.ctre.phoenix6.hardware.TalonFX
 import com.revrobotics.REVLibError
 import com.revrobotics.spark.SparkLowLevel
 import com.revrobotics.spark.SparkMax
+import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.net.PortForwarder
 import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.AnalogOutput
@@ -20,15 +21,17 @@ import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.url
+import teaforge.DebugLoggingConfig
 import teaforge.EffectResult
-import teaforge.HistoryEntry
+import teaforge.LoggerStatus
 import teaforge.ProgramRunnerConfig
 import teaforge.ProgramRunnerInstance
+import teaforge.SubscriptionIdentifier
 import teaforge.platform.RoboRio.AnalogInputToken
 import teaforge.platform.RoboRio.AnalogOutputToken
 import teaforge.platform.RoboRio.AnalogPort
 import teaforge.platform.RoboRio.CanDeviceToken
-import teaforge.platform.RoboRio.CanDeviceType
+import teaforge.platform.RoboRio.DebugLogging
 import teaforge.platform.RoboRio.DigitalInputToken
 import teaforge.platform.RoboRio.DigitalOutputToken
 import teaforge.platform.RoboRio.DioPort
@@ -45,6 +48,7 @@ import teaforge.platform.RoboRio.WebSocketToken
 import teaforge.utils.Maybe
 import teaforge.utils.Result
 import java.io.File
+import java.io.FileWriter
 import java.io.IOException
 import java.nio.file.AccessDeniedException
 import java.nio.file.FileSystemException
@@ -53,12 +57,46 @@ import java.nio.file.InvalidPathException
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.nio.file.Paths
-import kotlin.collections.Set
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 val CANBUS_INIT_TIMEOUT_SECONDS = 1.0
 
+private fun createLoggerStatus(debugLogging: DebugLogging): LoggerStatus =
+    when (debugLogging) {
+        is DebugLogging.Disabled -> {
+            LoggerStatus.Disabled
+        }
+
+        is DebugLogging.Enabled -> {
+            val filename =
+                when (debugLogging.logFile) {
+                    is DebugLogging.LogFile.Default -> {
+                        val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss"))
+                        "$timestamp-debug-log.jsonl"
+                    }
+
+                    is DebugLogging.LogFile.Path -> {
+                        debugLogging.logFile.path
+                    }
+                }
+            val fileWriter = FileWriter(File(filename), true)
+
+            LoggerStatus.Enabled(
+                DebugLoggingConfig(
+                    getTimestamp = { HALUtil.getFPGATime() },
+                    log = { json ->
+                        fileWriter.write(json)
+                        fileWriter.write("\n")
+                        fileWriter.flush()
+                    },
+                    compressionEnabled = debugLogging.compression,
+                ),
+            )
+        }
+    }
+
 data class RoboRioModel<TMessage, TModel>(
-    val messageHistory: List<HistoryEntry<TMessage, TModel>>,
     val digitalInputTokens: Set<DigitalInputToken>,
     val digitalOutputTokens: Set<DigitalOutputToken>,
     val analogInputTokens: Set<AnalogInputToken>,
@@ -70,6 +108,7 @@ data class RoboRioModel<TMessage, TModel>(
 
 fun <TMessage, TModel> createRoboRioRunner(
     program: RoboRioProgram<TMessage, TModel>,
+    debugLogging: DebugLogging,
     roboRioArgs: List<String>,
     programArgs: List<String>,
 ): ProgramRunnerInstance<
@@ -80,6 +119,8 @@ fun <TMessage, TModel> createRoboRioRunner(
     Subscription<TMessage>,
     SubscriptionState<TMessage>,
     > {
+    val loggerStatus = createLoggerStatus(debugLogging)
+
     val runnerConfig:
         ProgramRunnerConfig<
             Effect<TMessage>,
@@ -95,9 +136,10 @@ fun <TMessage, TModel> createRoboRioRunner(
             processSubscription = ::processSubscription,
             startOfUpdateCycle = ::startOfUpdateCycle,
             endOfUpdateCycle = ::endOfUpdateCycle,
-            processHistoryEntry = ::processHistoryEntry,
+            getUniqueIdentifierForSubscription = ::getUniqueIdentifierForSubscription,
             startSubscription = ::startSubscriptionHandler,
             stopSubscription = ::stopSubscriptionHandler,
+            loggerStatus = { loggerStatus },
         )
 
     return teaforge.platform.initRunner(
@@ -108,15 +150,27 @@ fun <TMessage, TModel> createRoboRioRunner(
     )
 }
 
+fun <TMessage> getUniqueIdentifierForSubscription(subscription: Subscription<TMessage>): SubscriptionIdentifier =
+    when (subscription) {
+        is Subscription.Interval -> subscription.id
+        is Subscription.WebSocket -> subscription.id
+        is Subscription.DigitalPortValue -> subscription.id
+        is Subscription.DigitalPortValueChanged -> subscription.id
+        is Subscription.AnalogPortValue -> subscription.id
+        is Subscription.AnalogPortValueChanged -> subscription.id
+        is Subscription.HidPortValue -> subscription.id
+        is Subscription.HidPortValueChanged -> subscription.id
+        is Subscription.RobotState -> subscription.id
+        is Subscription.RobotStateChanged -> subscription.id
+        is Subscription.CANcoderValue -> subscription.id
+        is Subscription.PigeonValue -> subscription.id
+        is Subscription.TalonValue -> subscription.id
+        is Subscription.SerialValue -> subscription.id
+    }
+
 fun <TMessage, TModel> startOfUpdateCycle(model: RoboRioModel<TMessage, TModel>): RoboRioModel<TMessage, TModel> = model
 
 fun <TMessage, TModel> endOfUpdateCycle(model: RoboRioModel<TMessage, TModel>): RoboRioModel<TMessage, TModel> = model
-
-fun <TMessage, TModel> processHistoryEntry(
-    roboRioModel: RoboRioModel<TMessage, TModel>,
-    event: HistoryEntry<TMessage, TModel>,
-): RoboRioModel<TMessage, TModel> =
-    roboRioModel // .copy(messageHistory = roboRioModel.messageHistory + event) TODO implement debugger
 
 fun <TMessage, TModel> initRoboRioRunner(
     @Suppress("UNUSED_PARAMETER") args: List<String>,
@@ -125,7 +179,6 @@ fun <TMessage, TModel> initRoboRioRunner(
     CANBus()
 
     return RoboRioModel(
-        messageHistory = emptyList(),
         digitalInputTokens = emptySet(),
         digitalOutputTokens = emptySet(),
         analogInputTokens = emptySet(),
@@ -168,6 +221,7 @@ fun <TMessage, TModel> processEffect(
                 }
             }
         }
+
         is Effect.InitAnalogPortForOutput -> {
             // Check if the analog port has already been initialized
             val alreadyInitialized = model.analogOutputTokens.any { it.port == effect.port }
@@ -276,7 +330,7 @@ fun <TMessage, TModel> processEffect(
                                 ),
                             )
                         }
-                    { currentModel ->
+                    { currentModel: RoboRioModel<TMessage, TModel> ->
                         currentModel to Maybe.Some(effect.message(result))
                     }
                 },
@@ -503,7 +557,6 @@ fun <TMessage, TModel> processEffect(
             // Local helpers for success and error cases
             fun success(
                 token: CanDeviceToken,
-                type: CanDeviceType,
                 id: Int,
                 message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
             ): EffectResult<RoboRioModel<TMessage, TModel>, TMessage> {
@@ -515,7 +568,6 @@ fun <TMessage, TModel> processEffect(
 
             fun failure(
                 error: Error,
-                type: CanDeviceType,
                 id: Int,
                 message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
             ): EffectResult<RoboRioModel<TMessage, TModel>, TMessage> {
@@ -530,14 +582,12 @@ fun <TMessage, TModel> processEffect(
                     if (connected) {
                         success(
                             CanDeviceToken.MotorToken.NeoMotorToken(effect.id, motor),
-                            CanDeviceType.Neo,
                             effect.id,
                             effect.message,
                         )
                     } else {
                         failure(
                             Error.RevError(effect.id, motor.lastError),
-                            CanDeviceType.Neo,
                             effect.id,
                             effect.message,
                         )
@@ -550,14 +600,12 @@ fun <TMessage, TModel> processEffect(
                     if (status.isOK) {
                         success(
                             CanDeviceToken.MotorToken.TalonMotorToken(effect.id, motor),
-                            CanDeviceType.Talon,
                             effect.id,
                             effect.message,
                         )
                     } else {
                         failure(
                             Error.PhoenixError.PhoenixInitializationError(effect.id, status),
-                            CanDeviceType.Talon,
                             effect.id,
                             effect.message,
                         )
@@ -570,14 +618,12 @@ fun <TMessage, TModel> processEffect(
                     if (status.isOK) {
                         success(
                             CanDeviceToken.EncoderToken(effect.id, encoder),
-                            CanDeviceType.Encoder,
                             effect.id,
                             effect.message,
                         )
                     } else {
                         failure(
                             Error.PhoenixError.PhoenixInitializationError(effect.id, status),
-                            CanDeviceType.Encoder,
                             effect.id,
                             effect.message,
                         )
@@ -590,14 +636,12 @@ fun <TMessage, TModel> processEffect(
                     if (status.isOK) {
                         success(
                             CanDeviceToken.PigeonToken(effect.id, pigeon),
-                            CanDeviceType.Pigeon,
                             effect.id,
                             effect.message,
                         )
                     } else {
                         failure(
                             Error.PhoenixError.PhoenixInitializationError(effect.id, status),
-                            CanDeviceType.Pigeon,
                             effect.id,
                             effect.message,
                         )
@@ -605,6 +649,7 @@ fun <TMessage, TModel> processEffect(
                 }
             }
         }
+
         // todo: change to async effects
         is Effect.ConfigCanDevice -> {
             when (effect) {
@@ -635,6 +680,7 @@ fun <TMessage, TModel> processEffect(
                         )
                     }
                 }
+
                 is Effect.ConfigCanDevice.Encoder -> {
                     val status =
                         effect.cancoder.device.configurator.apply(
@@ -660,6 +706,7 @@ fun <TMessage, TModel> processEffect(
                         )
                     }
                 }
+
                 is Effect.ConfigCanDevice.Pigeon -> {
                     val status =
                         effect.pigeon.device.configurator.apply(
@@ -712,15 +759,14 @@ fun <TMessage, TModel> processEffect(
             fun <TOutput> runAsyncEffect(
                 model: RoboRioModel<TMessage, TModel>,
                 effect: Effect.RunAsync<TMessage, TOutput>,
-            ): EffectResult<RoboRioModel<TMessage, TModel>, TMessage> {
-                return EffectResult.Async(
+            ): EffectResult<RoboRioModel<TMessage, TModel>, TMessage> =
+                EffectResult.Async(
                     updatedModel = model,
                     completion = {
                         val output: TOutput = effect.function();
                         { model -> model to Maybe.Some(effect.message(output)) }
                     },
                 )
-            }
             runAsyncEffect(
                 model = model,
                 effect = effect,
