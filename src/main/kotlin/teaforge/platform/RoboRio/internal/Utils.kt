@@ -94,7 +94,7 @@ internal fun getRunningRobotState(): RunningRobotState {
     return state
 }
 
-fun <T> statusSignalToSignalValue(statusSignal: StatusSignal<T>) : SignalValue<Double> =
+fun <T> statusSignalToSignalValue(statusSignal: StatusSignal<T>): SignalValue<Double> =
     SignalValue(
         value = statusSignal.valueAsDouble,
         timestamp = statusSignal.timestamp,

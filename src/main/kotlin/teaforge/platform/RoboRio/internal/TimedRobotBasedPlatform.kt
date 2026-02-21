@@ -8,19 +8,18 @@ import teaforge.ProgramRunnerInstance
 import teaforge.platform.RoboRio.Effect
 import teaforge.platform.RoboRio.RoboRioProgram
 import teaforge.platform.RoboRio.Subscription
-import kotlin.coroutines.CoroutineContext
 
 class TimedRobotBasedPlatform<TMessage, TModel>(val program: RoboRioProgram<TMessage, TModel>) :
     TimedRobot() {
-
     private var runner:
-            ProgramRunnerInstance<
-                    Effect<TMessage>,
-                    TMessage,
-                    TModel,
-                    RoboRioModel<TMessage, TModel>,
-                    Subscription<TMessage>,
-                    SubscriptionState<TMessage>>? =
+        ProgramRunnerInstance<
+            Effect<TMessage>,
+            TMessage,
+            TModel,
+            RoboRioModel<TMessage, TModel>,
+            Subscription<TMessage>,
+            SubscriptionState<TMessage>,
+            >? =
         null
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())

@@ -7,13 +7,11 @@ import com.ctre.phoenix6.hardware.Pigeon2
 import com.ctre.phoenix6.hardware.TalonFX
 import com.revrobotics.REVLibError
 import com.revrobotics.spark.SparkMax
-import edu.wpi.first.math.geometry.Rotation3d
 import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.AnalogOutput
 import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.DigitalOutput
 import edu.wpi.first.wpilibj.motorcontrol.Spark
-import teaforge.utils.Maybe
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 
@@ -88,7 +86,7 @@ sealed interface Error {
 
     data class WebSocketInitializationError(
         val uri: String,
-        val details: String
+        val details: String,
     ) : Error
 }
 
@@ -162,7 +160,7 @@ data class OrchestraToken internal constructor(
 data class WebSocketToken internal constructor(
     val url: String,
     val client: HttpClient,
-    val session: DefaultClientWebSocketSession
+    val session: DefaultClientWebSocketSession,
 )
 
 enum class DioPortState {
@@ -221,24 +219,29 @@ data class SignalValue<T>(
 )
 
 sealed interface CanDeviceSnapshot {
-    data class TalonSnapshot (
+    data class TalonSnapshot(
         val position: SignalValue<Double>,
         val velocity: SignalValue<Double>,
     ) : CanDeviceSnapshot
 
-    data class EncoderSnapshot (
+    data class EncoderSnapshot(
         val absolutePos: SignalValue<Double>,
         val relativePos: SignalValue<Double>,
         val velocity: SignalValue<Double>,
     ) : CanDeviceSnapshot
 
-    data class PigeonSnapshot (
-        val yawRate: SignalValue<Double>, //rotations per second
-        val pitchRate: SignalValue<Double>, //rotations per second
-        val rollRate: SignalValue<Double>, //rotations per second
-        val yaw: SignalValue<Double>, //rotations, does not wrap around
-        val pitch: SignalValue<Double>, //rotations, does not wrap around
-        val roll: SignalValue<Double>, //rotations, does not wrap around
+    data class PigeonSnapshot(
+        // rotations per second
+        val yawRate: SignalValue<Double>,
+        // rotations per second
+        val pitchRate: SignalValue<Double>,
+        // rotations per second
+        val rollRate: SignalValue<Double>,
+        // rotations, does not wrap around
+        val yaw: SignalValue<Double>,
+        // rotations, does not wrap around
+        val pitch: SignalValue<Double>,
+        // rotations, does not wrap around
+        val roll: SignalValue<Double>,
     ) : CanDeviceSnapshot
 }
-
