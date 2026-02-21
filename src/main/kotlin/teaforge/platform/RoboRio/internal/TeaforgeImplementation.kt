@@ -39,6 +39,7 @@ import teaforge.platform.RoboRio.DioPortState
 import teaforge.platform.RoboRio.Effect
 import teaforge.platform.RoboRio.Error
 import teaforge.platform.RoboRio.HidInputToken
+import teaforge.platform.RoboRio.LogFile
 import teaforge.platform.RoboRio.OrchestraToken
 import teaforge.platform.RoboRio.PwmOutputToken
 import teaforge.platform.RoboRio.PwmPort
@@ -71,12 +72,12 @@ private fun createLoggerStatus(debugLogging: DebugLogging): LoggerStatus =
         is DebugLogging.Enabled -> {
             val filename =
                 when (debugLogging.logFile) {
-                    is DebugLogging.LogFile.Default -> {
+                    is LogFile.Default -> {
                         val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss"))
                         "$timestamp-debug-log.jsonl"
                     }
 
-                    is DebugLogging.LogFile.Path -> {
+                    is LogFile.Path -> {
                         debugLogging.logFile.path
                     }
                 }
