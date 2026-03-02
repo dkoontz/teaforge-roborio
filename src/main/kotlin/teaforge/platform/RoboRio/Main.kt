@@ -181,6 +181,12 @@ sealed interface Effect<out TMessage> {
         val value: Double,
     ) : Effect<Nothing>
 
+    data class SetTalonVoltage<TMessage>(
+        val talon: CanDeviceToken.MotorToken.TalonMotorToken,
+        val voltage: Double,
+        val message: (Result<CanDeviceToken, Error>) -> TMessage,
+    ) : Effect<TMessage>
+
     data class ReadFile<TMessage>(
         val path: String,
         val message: (Result<ByteArray, Error>) -> TMessage,
@@ -479,6 +485,14 @@ fun <TMessage, TNewMessage, TOutput> mapEffect(
 
         is Effect.SetCanMotorSpeed -> {
             effect
+        }
+
+        is Effect.SetTalonVoltage -> {
+            Effect.SetTalonVoltage(
+                talon = effect.talon,
+                voltage = effect.voltage,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
         }
 
         is Effect.ReadFile -> {

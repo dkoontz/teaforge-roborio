@@ -222,6 +222,7 @@ sealed interface CanDeviceSnapshot {
     data class TalonSnapshot(
         val position: SignalValue<Double>,
         val velocity: SignalValue<Double>,
+        val motorVoltage: SignalValue<Double>,
     ) : CanDeviceSnapshot
 
     data class EncoderSnapshot(

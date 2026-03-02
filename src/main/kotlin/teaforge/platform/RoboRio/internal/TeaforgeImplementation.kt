@@ -3,6 +3,7 @@ package teaforge.platform.RoboRio.internal
 import com.ctre.phoenix6.CANBus
 import com.ctre.phoenix6.Orchestra
 import com.ctre.phoenix6.StatusCode
+import com.ctre.phoenix6.controls.VoltageOut
 import com.ctre.phoenix6.hardware.CANcoder
 import com.ctre.phoenix6.hardware.Pigeon2
 import com.ctre.phoenix6.hardware.TalonFX
@@ -480,6 +481,33 @@ fun <TMessage, TModel> processEffect(
                 is CanDeviceToken.MotorToken.NeoMotorToken -> effect.motor.device.set(effect.value)
             }
             return EffectResult.Sync(model, Maybe.None)
+        }
+
+        is Effect.SetTalonVoltage -> {
+            val voltageRequest = VoltageOut(effect.voltage)
+            val status = effect.talon.device.setControl(voltageRequest)
+
+            if (status.isOK) {
+                EffectResult.Sync(
+                    model,
+                    Maybe.Some(
+                        effect.message(
+                            Result.Success<CanDeviceToken.MotorToken.TalonMotorToken, Error>(effect.talon),
+                        ),
+                    ),
+                )
+            } else {
+                EffectResult.Sync(
+                    model,
+                    Maybe.Some(
+                        effect.message(
+                            Result.Error<CanDeviceToken.MotorToken.TalonMotorToken, Error>(
+                                Error.PhoenixError.PhoenixDeviceError(effect.talon, status),
+                            ),
+                        ),
+                    ),
+                )
+            }
         }
 
         is Effect.ReadFile -> {
