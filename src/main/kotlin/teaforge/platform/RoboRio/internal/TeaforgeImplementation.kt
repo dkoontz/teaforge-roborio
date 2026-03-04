@@ -485,29 +485,9 @@ fun <TMessage, TModel> processEffect(
 
         is Effect.SetTalonVoltage -> {
             val voltageRequest = VoltageOut(effect.voltage)
-            val status = effect.talon.device.setControl(voltageRequest)
+            effect.talon.device.setControl(voltageRequest)
 
-            if (status.isOK) {
-                EffectResult.Sync(
-                    model,
-                    Maybe.Some(
-                        effect.message(
-                            Result.Success<CanDeviceToken.MotorToken.TalonMotorToken, Error>(effect.talon),
-                        ),
-                    ),
-                )
-            } else {
-                EffectResult.Sync(
-                    model,
-                    Maybe.Some(
-                        effect.message(
-                            Result.Error<CanDeviceToken.MotorToken.TalonMotorToken, Error>(
-                                Error.PhoenixError.PhoenixDeviceError(effect.talon, status),
-                            ),
-                        ),
-                    ),
-                )
-            }
+            return EffectResult.Sync(model, Maybe.None)
         }
 
         is Effect.ReadFile -> {

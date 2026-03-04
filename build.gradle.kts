@@ -13,7 +13,6 @@ project.version = "0.1.7"
 repositories {
     mavenCentral()
     flatDir { dirs("libs") }
-
     maven { url = uri("https://maven.ctr-electronics.com/release/") }
     maven { url = uri("https://maven.revrobotics.com/") }
 }
