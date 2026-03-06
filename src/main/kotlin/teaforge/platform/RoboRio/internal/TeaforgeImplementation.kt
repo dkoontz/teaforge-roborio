@@ -23,7 +23,6 @@ import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.url
 import org.zeromq.SocketType
 import org.zeromq.ZContext
-import org.zeromq.ZMQ
 import teaforge.DebugLoggingConfig
 import teaforge.EffectResult
 import teaforge.LoggerStatus
@@ -792,7 +791,7 @@ fun <TMessage, TModel> processEffect(
                     TCPTokenImplementation(context, socket)
                 }.fold(
                     onSuccess = { Result.Success(it) },
-                    onFailure = { Result.Error(Error.TCPClientInitError(it.message ?: "")) }
+                    onFailure = { Result.Error(Error.TCPClientInitError(it.message ?: "")) },
                 )
             EffectResult.Sync(model, Maybe.Some(effect.message(result)))
         }

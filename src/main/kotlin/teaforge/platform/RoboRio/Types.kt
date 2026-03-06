@@ -172,7 +172,7 @@ data class WebSocketToken internal constructor(
 sealed interface TCPToken
 internal data class TCPTokenImplementation(
     val context: ZContext,
-    val socket: ZMQ.Socket
+    val socket: ZMQ.Socket,
 ) : TCPToken
 
 enum class DioPortState {

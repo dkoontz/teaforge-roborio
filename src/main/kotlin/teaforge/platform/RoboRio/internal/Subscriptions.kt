@@ -13,8 +13,6 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlinx.coroutines.runBlocking
-import org.zeromq.SocketType
-import org.zeromq.ZContext
 import org.zeromq.ZMQ
 import teaforge.platform.RoboRio.CanDeviceSnapshot
 import teaforge.platform.RoboRio.DioPortState
@@ -101,8 +99,6 @@ sealed interface SubscriptionState<TMessage> {
     data class TCPValue<TMessage>(
         val config: Subscription.TCPValue<TMessage>,
     ) : SubscriptionState<TMessage>
-
-
 }
 
 fun <TMessage, TModel> createDigitalPortValueState(
@@ -446,9 +442,10 @@ fun <TMessage, TModel> runReadTCPValue(
     state: SubscriptionState.TCPValue<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
     // Get socket from token
-    val socket: ZMQ.Socket = when (val token = state.config.token) {
-        is TCPTokenImplementation -> token.socket
-    }
+    val socket: ZMQ.Socket =
+        when (val token = state.config.token) {
+            is TCPTokenImplementation -> token.socket
+        }
 
     // Read until buffer is empty
     val messages: List<String> =
