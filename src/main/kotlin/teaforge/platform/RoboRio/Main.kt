@@ -7,25 +7,6 @@ import edu.wpi.first.wpilibj.RobotBase
 import edu.wpi.first.wpilibj.SerialPort
 import teaforge.ProgramConfig
 import teaforge.SubscriptionIdentifier
-import teaforge.platform.RoboRio.Effect.ForwardPort
-import teaforge.platform.RoboRio.Effect.InitAnalogPortForInput
-import teaforge.platform.RoboRio.Effect.InitAnalogPortForOutput
-import teaforge.platform.RoboRio.Effect.InitCanDevice.Encoder
-import teaforge.platform.RoboRio.Effect.InitCanDevice.InitMotor.Neo
-import teaforge.platform.RoboRio.Effect.InitCanDevice.InitMotor.Talon
-import teaforge.platform.RoboRio.Effect.InitCanDevice.Pigeon
-import teaforge.platform.RoboRio.Effect.InitDigitalPortForInput
-import teaforge.platform.RoboRio.Effect.InitDigitalPortForOutput
-import teaforge.platform.RoboRio.Effect.InitHidPortForInput
-import teaforge.platform.RoboRio.Effect.InitPwmPortForOutput
-import teaforge.platform.RoboRio.Effect.InitWebSocket
-import teaforge.platform.RoboRio.Effect.LoadSong
-import teaforge.platform.RoboRio.Effect.PlaySong
-import teaforge.platform.RoboRio.Effect.ReadFile
-import teaforge.platform.RoboRio.Effect.SetAnalogPortVoltage
-import teaforge.platform.RoboRio.Effect.SetDigitalPortState
-import teaforge.platform.RoboRio.Effect.SetPwmValue
-import teaforge.platform.RoboRio.Effect.StopSong
 import teaforge.platform.RoboRio.Subscription.AnalogPortValue
 import teaforge.platform.RoboRio.Subscription.AnalogPortValueChanged
 import teaforge.platform.RoboRio.Subscription.CANcoderValue
@@ -101,6 +82,13 @@ sealed interface Effect<out TMessage> {
     data class InitWebSocket<TMessage>(
         val url: String,
         val message: (Result<WebSocketToken, Error>) -> TMessage,
+    ) : Effect<TMessage>
+
+    data class InitTCPClient<TMessage>(
+        val host: String,
+        val port: UShort,
+        val topic: String,
+        val message: (Result<TCPToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
     data class SetDigitalPortState<TMessage>(
@@ -302,6 +290,12 @@ sealed interface Subscription<out TMessage> {
         val port: SerialPort.Port,
         val message: (String) -> TMessage,
     ) : Subscription<TMessage>
+
+    data class TCPValue<TMessage>(
+        val id: SubscriptionIdentifier,
+        val token: TCPToken,
+        val message: (List<String>) -> TMessage,
+    ) : Subscription<TMessage>
 }
 
 /**
@@ -347,7 +341,7 @@ sealed interface Subscription<out TMessage> {
  * @param mapFunction A function that converts the original message type to the new message type
  * @return A new Effect with the transformed message type
  */
-fun <TMessage, TNewMessage, TOutput> mapEffect(
+fun <TMessage, TNewMessage> mapEffect(
     effect: Effect<TMessage>,
     mapFunction: (TMessage) -> TNewMessage,
 ): Effect<TNewMessage> =
@@ -526,6 +520,15 @@ fun <TMessage, TNewMessage, TOutput> mapEffect(
             )
         }
 
+        is Effect.InitTCPClient -> {
+            Effect.InitTCPClient(
+                host = effect.host,
+                port = effect.port,
+                topic = effect.topic,
+                message = { token -> mapFunction(effect.message(token)) },
+            )
+        }
+
         is Effect.RunAsync<TMessage, *> -> {
             fun <TOutput> mapRunAsync(
                 effect: Effect.RunAsync<TMessage, TOutput>,
@@ -700,6 +703,14 @@ fun <TMessage, TNewMessage> mapSubscription(
                 id = subscription.id,
                 baudRate = subscription.baudRate,
                 port = subscription.port,
+                message = { info -> mapFunction(subscription.message(info)) },
+            )
+        }
+
+        is Subscription.TCPValue -> {
+            Subscription.TCPValue(
+                id = subscription.id,
+                token = subscription.token,
                 message = { info -> mapFunction(subscription.message(info)) },
             )
         }

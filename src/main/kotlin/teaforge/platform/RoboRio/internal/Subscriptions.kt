@@ -13,12 +13,14 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlinx.coroutines.runBlocking
+import org.zeromq.ZMQ
 import teaforge.platform.RoboRio.CanDeviceSnapshot
 import teaforge.platform.RoboRio.DioPortState
 import teaforge.platform.RoboRio.HidValue
 import teaforge.platform.RoboRio.RunningRobotState
 import teaforge.platform.RoboRio.SignalValue
 import teaforge.platform.RoboRio.Subscription
+import teaforge.platform.RoboRio.TCPTokenImplementation
 import teaforge.utils.Maybe
 import teaforge.utils.map
 
@@ -92,6 +94,10 @@ sealed interface SubscriptionState<TMessage> {
     data class SerialValue<TMessage>(
         val config: Subscription.SerialValue<TMessage>,
         val reader: SerialPort,
+    ) : SubscriptionState<TMessage>
+
+    data class TCPValue<TMessage>(
+        val config: Subscription.TCPValue<TMessage>,
     ) : SubscriptionState<TMessage>
 }
 
@@ -335,6 +341,18 @@ fun <TMessage, TModel> createSerialState(
     )
 }
 
+fun <TMessage, TModel> createTCPValueState(
+    model: RoboRioModel<TMessage, TModel>,
+    config: Subscription.TCPValue<TMessage>,
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
+    return Pair(
+        model,
+        SubscriptionState.TCPValue(
+            config = config,
+        ),
+    )
+}
+
 fun <TMessage, TModel> processSubscription(
     model: RoboRioModel<TMessage, TModel>,
     subscriptionState: SubscriptionState<TMessage>,
@@ -354,6 +372,7 @@ fun <TMessage, TModel> processSubscription(
         is SubscriptionState.WebSocket -> runReadWebSocket(model, subscriptionState)
         is SubscriptionState.TalonValue -> runReadTalonValue(model, subscriptionState)
         is SubscriptionState.SerialValue -> runReadSerialValue(model, subscriptionState)
+        is SubscriptionState.TCPValue -> runReadTCPValue(model, subscriptionState)
     }
 
 fun <TMessage, TModel> startSubscriptionHandler(
@@ -375,6 +394,7 @@ fun <TMessage, TModel> startSubscriptionHandler(
         is Subscription.WebSocket -> createWebSocket(model, subscription)
         is Subscription.TalonValue -> createTalonValueState(model, subscription)
         is Subscription.SerialValue -> createSerialState(model, subscription)
+        is Subscription.TCPValue -> createTCPValueState(model, subscription)
     }
 
 fun <TMessage, TModel> stopSubscriptionHandler(
@@ -396,6 +416,7 @@ fun <TMessage, TModel> stopSubscriptionHandler(
         is SubscriptionState.Interval -> model
         is SubscriptionState.WebSocket -> closeWebSocket(model, subscriptionState)
         is SubscriptionState.SerialValue -> closeSerial(model, subscriptionState)
+        is SubscriptionState.TCPValue -> closeTCP(model, subscriptionState)
     }
 
 fun <TMessage, TModel> runReadSerialValue(
@@ -414,6 +435,23 @@ fun <TMessage, TModel> runReadSerialValue(
         } ?: Maybe.None
 
     return Triple(model, state, message)
+}
+
+fun <TMessage, TModel> runReadTCPValue(
+    model: RoboRioModel<TMessage, TModel>,
+    state: SubscriptionState.TCPValue<TMessage>,
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
+    // Get socket from token
+    val socket: ZMQ.Socket =
+        when (val token = state.config.token) {
+            is TCPTokenImplementation -> token.socket
+        }
+
+    // Read until buffer is empty
+    val messages: List<String> =
+        generateSequence { socket.recvStr(ZMQ.DONTWAIT) }
+            .toList()
+    return Triple(model, state, Maybe.Some(state.config.message(messages)))
 }
 
 fun <TMessage, TModel> runReadDigitalPort(
@@ -800,5 +838,19 @@ fun <TMessage, TModel> closeSerial(
     state: SubscriptionState.SerialValue<TMessage>,
 ): RoboRioModel<TMessage, TModel> {
     state.reader.close()
+    return model
+}
+
+fun <TMessage, TModel> closeTCP(
+    model: RoboRioModel<TMessage, TModel>,
+    state: SubscriptionState.TCPValue<TMessage>,
+): RoboRioModel<TMessage, TModel> {
+    // close socket and context from token
+    when (val token = state.config.token) {
+        is TCPTokenImplementation -> {
+            token.socket.close()
+            token.context.close()
+        }
+    }
     return model
 }

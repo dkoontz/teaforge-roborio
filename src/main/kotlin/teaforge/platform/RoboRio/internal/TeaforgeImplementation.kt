@@ -21,6 +21,8 @@ import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.url
+import org.zeromq.SocketType
+import org.zeromq.ZContext
 import teaforge.DebugLoggingConfig
 import teaforge.EffectResult
 import teaforge.LoggerStatus
@@ -45,6 +47,8 @@ import teaforge.platform.RoboRio.PwmOutputToken
 import teaforge.platform.RoboRio.PwmPort
 import teaforge.platform.RoboRio.RoboRioProgram
 import teaforge.platform.RoboRio.Subscription
+import teaforge.platform.RoboRio.TCPToken
+import teaforge.platform.RoboRio.TCPTokenImplementation
 import teaforge.platform.RoboRio.WebSocketToken
 import teaforge.utils.Maybe
 import teaforge.utils.Result
@@ -167,6 +171,7 @@ fun <TMessage> getUniqueIdentifierForSubscription(subscription: Subscription<TMe
         is Subscription.PigeonValue -> subscription.id
         is Subscription.TalonValue -> subscription.id
         is Subscription.SerialValue -> subscription.id
+        is Subscription.TCPValue -> subscription.id
     }
 
 fun <TMessage, TModel> startOfUpdateCycle(model: RoboRioModel<TMessage, TModel>): RoboRioModel<TMessage, TModel> = model
@@ -772,6 +777,23 @@ fun <TMessage, TModel> processEffect(
                 model = model,
                 effect = effect,
             )
+        }
+
+        is Effect.InitTCPClient -> {
+            val result: Result<TCPToken, Error> =
+                runCatching {
+                    val context = ZContext()
+                    val socket = context.createSocket(SocketType.SUB)
+
+                    socket.connect("tcp://${effect.host}:${effect.port}")
+                    socket.subscribe(effect.topic.toByteArray())
+
+                    TCPTokenImplementation(context, socket)
+                }.fold(
+                    onSuccess = { Result.Success(it) },
+                    onFailure = { Result.Error(Error.TCPClientInitError(it.message ?: "")) },
+                )
+            EffectResult.Sync(model, Maybe.Some(effect.message(result)))
         }
     }
 }
