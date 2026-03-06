@@ -14,6 +14,8 @@ import edu.wpi.first.wpilibj.DigitalOutput
 import edu.wpi.first.wpilibj.motorcontrol.Spark
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
+import org.zeromq.ZContext
+import org.zeromq.ZMQ
 
 enum class RunningRobotState {
     Disabled,
@@ -86,6 +88,10 @@ sealed interface Error {
 
     data class WebSocketInitializationError(
         val uri: String,
+        val details: String,
+    ) : Error
+
+    data class TCPClientInitError(
         val details: String,
     ) : Error
 }
@@ -162,6 +168,12 @@ data class WebSocketToken internal constructor(
     val client: HttpClient,
     val session: DefaultClientWebSocketSession,
 )
+
+sealed interface TCPToken
+internal data class TCPTokenImplementation(
+    val context: ZContext,
+    val socket: ZMQ.Socket
+) : TCPToken
 
 enum class DioPortState {
     HIGH,
