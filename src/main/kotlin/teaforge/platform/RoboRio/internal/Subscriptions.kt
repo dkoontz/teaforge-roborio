@@ -180,15 +180,19 @@ fun <TMessage, TModel> createHidPortValueChangedState(
     val hidDevice = GenericHID(config.token.port)
     val axisCount = hidDevice.getAxisCount()
     val buttonCount = hidDevice.getButtonCount()
+    val povCount = hidDevice.getPOVCount()
     val axisValues = (0..<axisCount).map { i -> hidDevice.getRawAxis(i) }.toTypedArray()
     val buttonValues = (1..buttonCount).map { i -> hidDevice.getRawButton(i) }.toTypedArray()
+    val povValues = (0..<povCount).map { i -> hidDevice.getPOV(i) }.toTypedArray()
 
     val initialValue =
         HidValue(
             axisCount = axisCount,
             buttonCount = buttonCount,
+            povCount = povCount,
             axisValues = axisValues,
             buttonValues = buttonValues,
+            povValues = povValues,
         )
 
     return Pair(
@@ -507,17 +511,22 @@ fun <TMessage, TModel> runReadHidPort(
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
     val axisCount = state.hidDevice.getAxisCount()
     val buttonCount = state.hidDevice.getButtonCount()
+    val povCount = state.hidDevice.getPOVCount()
     val axisValues =
         (0..<axisCount).map({ i -> state.hidDevice.getRawAxis(i) }).toTypedArray()
     val buttonValues =
         (1..buttonCount).map({ i -> state.hidDevice.getRawButton(i) }).toTypedArray()
+    val povValues =
+        (0..<povCount).map({ i -> state.hidDevice.getPOV(i) }).toTypedArray()
 
     val hidValue =
         HidValue(
             axisCount = axisCount,
             buttonCount = buttonCount,
+            povCount = povCount,
             axisValues = axisValues,
             buttonValues = buttonValues,
+            povValues = povValues,
         )
 
     return Triple(model, state, Maybe.Some(state.config.message(hidValue)))
@@ -798,21 +807,26 @@ fun <TMessage, TModel> runReadHidPortChanged(
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
     val axisCount = state.hidDevice.getAxisCount()
     val buttonCount = state.hidDevice.getButtonCount()
+    val povCount = state.hidDevice.getPOVCount()
     val axisValues = (0..<axisCount).map { i -> state.hidDevice.getRawAxis(i) }.toTypedArray()
     val buttonValues = (1..buttonCount).map { i -> state.hidDevice.getRawButton(i) }.toTypedArray()
+    val povValues = (0..<povCount).map { i -> state.hidDevice.getPOV(i) }.toTypedArray()
 
     val newValue =
         HidValue(
             axisCount = axisCount,
             buttonCount = buttonCount,
+            povCount = povCount,
             axisValues = axisValues,
             buttonValues = buttonValues,
+            povValues = povValues,
         )
 
     // Compare arrays to detect changes
     val hasChanged =
         !newValue.axisValues.contentEquals(state.lastReadValue.axisValues) ||
-            !newValue.buttonValues.contentEquals(state.lastReadValue.buttonValues)
+            !newValue.buttonValues.contentEquals(state.lastReadValue.buttonValues) ||
+            !newValue.povValues.contentEquals(state.lastReadValue.povValues)
 
     return if (hasChanged) {
         val updatedState = state.copy(lastReadValue = newValue)
