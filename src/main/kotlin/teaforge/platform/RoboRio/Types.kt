@@ -183,8 +183,10 @@ enum class DioPortState {
 data class HidValue(
     val axisCount: Int,
     val buttonCount: Int,
+    val povCount: Int,
     val axisValues: Array<Double>,
     val buttonValues: Array<Boolean>,
+    val povValues: Array<Int>,
 )
 
 sealed interface CanDeviceToken {
