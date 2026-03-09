@@ -290,6 +290,7 @@ fun <TMessage, TModel> createTalonValueState(
 
     val position = talon.position
     val velocity = talon.velocity
+    val motorVoltage = talon.motorVoltage
 
     return Pair(
         model,
@@ -299,6 +300,7 @@ fun <TMessage, TModel> createTalonValueState(
                 CanDeviceSnapshot.TalonSnapshot(
                     position = statusSignalToSignalValue(position),
                     velocity = statusSignalToSignalValue(velocity),
+                    motorVoltage = statusSignalToSignalValue(motorVoltage),
                 ),
         ),
     )
@@ -696,14 +698,17 @@ fun <TMessage, TModel> runReadTalonValue(
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
     val positionSignal = state.config.token.device.position
     val velocitySignal = state.config.token.device.velocity
+    val motorVoltageSignal = state.config.token.device.motorVoltage
 
     val currentPositionTimestamp = positionSignal.timestamp
     val currentVelocityTimestamp = velocitySignal.timestamp
+    val currentMotorVoltageTimestamp = motorVoltageSignal.timestamp
 
     val atLeastOneUpdated =
         !(
             currentPositionTimestamp.equals(state.lastReadTalonValue.position.timestamp) &&
-                currentVelocityTimestamp.equals(state.lastReadTalonValue.velocity.timestamp)
+                currentVelocityTimestamp.equals(state.lastReadTalonValue.velocity.timestamp) &&
+                currentMotorVoltageTimestamp.equals(state.lastReadTalonValue.motorVoltage.timestamp)
         )
 
     return if (true) { // TODO set to asLeastOneUpdated as soon as we fix subscription deletion problem
@@ -721,6 +726,12 @@ fun <TMessage, TModel> runReadTalonValue(
                         value = velocitySignal.valueAsDouble,
                         timestamp = currentVelocityTimestamp,
                         status = velocitySignal.status,
+                    ),
+                motorVoltage =
+                    SignalValue<Double>(
+                        value = motorVoltageSignal.valueAsDouble,
+                        timestamp = currentMotorVoltageTimestamp,
+                        status = motorVoltageSignal.status,
                     ),
             )
         val updatedState =

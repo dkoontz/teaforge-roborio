@@ -164,9 +164,15 @@ sealed interface Effect<out TMessage> {
         ) : ConfigCanDevice<TMessage>
     }
 
+    // refactor to setvoltage
     data class SetCanMotorSpeed(
         val motor: CanDeviceToken.MotorToken,
         val value: Double,
+    ) : Effect<Nothing>
+
+    data class SetTalonVoltage(
+        val talon: CanDeviceToken.MotorToken.TalonMotorToken,
+        val voltage: Double,
     ) : Effect<Nothing>
 
     data class ReadFile<TMessage>(
@@ -472,6 +478,10 @@ fun <TMessage, TNewMessage> mapEffect(
         }
 
         is Effect.SetCanMotorSpeed -> {
+            effect
+        }
+
+        is Effect.SetTalonVoltage -> {
             effect
         }
 
