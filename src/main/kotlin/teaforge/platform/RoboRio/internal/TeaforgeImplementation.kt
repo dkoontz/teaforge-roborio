@@ -460,7 +460,6 @@ fun <TMessage, TModel> processEffect(
             try {
                 val status = effect.token.orchestra.stop()
                 if (status.isOK) {
-                    effect.token.orchestra.close()
                     val result = Result.Success<Unit, Error>(Unit)
                     EffectResult.Sync(model, Maybe.Some(effect.message(result)))
                 } else {
