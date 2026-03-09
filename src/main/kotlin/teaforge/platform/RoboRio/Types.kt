@@ -11,6 +11,7 @@ import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.AnalogOutput
 import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.DigitalOutput
+import edu.wpi.first.wpilibj.Servo
 import edu.wpi.first.wpilibj.motorcontrol.Spark
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
@@ -151,7 +152,7 @@ data class AnalogInputToken internal constructor(
 
 data class PwmOutputToken internal constructor(
     val port: PwmPort,
-    val device: Spark,
+    val device: Servo,
 )
 
 data class HidInputToken internal constructor(

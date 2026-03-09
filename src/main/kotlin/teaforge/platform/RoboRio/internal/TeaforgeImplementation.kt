@@ -16,6 +16,7 @@ import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.AnalogOutput
 import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.DigitalOutput
+import edu.wpi.first.wpilibj.Servo
 import edu.wpi.first.wpilibj.motorcontrol.Spark
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -355,7 +356,7 @@ fun <TMessage, TModel> processEffect(
                 // Configure the PWM port for output using WPILib
                 try {
                     val portId = pwmPortToInt(effect.port)
-                    val pwmOutput = Spark(portId)
+                    val pwmOutput = Servo(portId)
                     // Set the port to the initial speed
                     pwmOutput.set(effect.initialSpeed)
 
