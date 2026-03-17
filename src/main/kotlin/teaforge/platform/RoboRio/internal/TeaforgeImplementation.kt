@@ -168,6 +168,7 @@ fun <TMessage> getUniqueIdentifierForSubscription(subscription: Subscription<TMe
         is Subscription.RobotState -> subscription.id
         is Subscription.RobotStateChanged -> subscription.id
         is Subscription.CANcoderValue -> subscription.id
+        is Subscription.CANRangeValue -> subscription.id
         is Subscription.PigeonValue -> subscription.id
         is Subscription.TalonValue -> subscription.id
         is Subscription.SerialValue -> subscription.id

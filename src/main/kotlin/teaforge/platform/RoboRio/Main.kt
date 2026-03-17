@@ -272,6 +272,12 @@ sealed interface Subscription<out TMessage> {
         val message: (CanDeviceSnapshot.EncoderSnapshot) -> TMessage,
     ) : Subscription<TMessage>
 
+    data class CANRangeValue<TMessage>(
+        val id: SubscriptionIdentifier,
+        val token: CanDeviceToken.CANRangeToken,
+        val message: (CanDeviceSnapshot.CanRangeSnapshot) -> TMessage,
+    ) : Subscription<TMessage>
+
     data class PigeonValue<TMessage>(
         val id: SubscriptionIdentifier,
         val token: CanDeviceToken.PigeonToken,
@@ -671,6 +677,14 @@ fun <TMessage, TNewMessage> mapSubscription(
                 id = subscription.id,
                 token = subscription.token,
                 message = { snapshot -> mapFunction(subscription.message(snapshot)) },
+            )
+        }
+
+        is Subscription.CANRangeValue -> {
+            Subscription.CANRangeValue(
+                id = subscription.id,
+                token = subscription.token,
+                message = { snapshot -> mapFunction(subscription.message(snapshot)) }
             )
         }
 

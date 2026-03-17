@@ -4,6 +4,7 @@ import com.ctre.phoenix6.StatusSignal
 import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.units.measure.Angle
 import edu.wpi.first.units.measure.AngularVelocity
+import edu.wpi.first.units.measure.Distance
 import edu.wpi.first.wpilibj.GenericHID
 import edu.wpi.first.wpilibj.SerialPort
 import io.ktor.client.HttpClient
@@ -79,6 +80,11 @@ sealed interface SubscriptionState<TMessage> {
     data class CANcoderValue<TMessage>(
         val config: Subscription.CANcoderValue<TMessage>,
         val lastReadCANcoderValue: CanDeviceSnapshot.EncoderSnapshot,
+    ) : SubscriptionState<TMessage>
+
+    data class CANRangeValue<TMessage>(
+        val config: Subscription.CANRangeValue<TMessage>,
+        val lastReadValue: CanDeviceSnapshot.CanRangeSnapshot,
     ) : SubscriptionState<TMessage>
 
     data class PigeonValue<TMessage>(
@@ -252,6 +258,26 @@ fun <TMessage, TModel> createCANcoderValueState(
     return model to subscriptionState
 }
 
+fun <TMessage, TModel> createCANRangeValueState(
+    model: RoboRioModel<TMessage, TModel>,
+    config: Subscription.CANRangeValue<TMessage>,
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>>{
+    val canRange = config.token.device
+
+    val distance: StatusSignal<Distance> = canRange.distance
+
+    val subscriptionState =
+        SubscriptionState.CANRangeValue(
+            config = config,
+            lastReadValue =
+                CanDeviceSnapshot.CanRangeSnapshot(
+                    distance = statusSignalToSignalValue(distance)
+                )
+        )
+
+    return model to subscriptionState
+}
+
 fun <TMessage, TModel> createPigeonValueState(
     model: RoboRioModel<TMessage, TModel>,
     config: Subscription.PigeonValue<TMessage>,
@@ -371,6 +397,7 @@ fun <TMessage, TModel> processSubscription(
         is SubscriptionState.RobotState -> runReadRobotState(model, subscriptionState)
         is SubscriptionState.RobotStateChanged -> runHasRobotStateChanged(model, subscriptionState)
         is SubscriptionState.CANcoderValue -> runReadCANcoder(model, subscriptionState)
+        is SubscriptionState.CANRangeValue -> runReadCANRange(model, subscriptionState)
         is SubscriptionState.PigeonValue -> runReadPigeon(model, subscriptionState)
         is SubscriptionState.Interval -> runReadInterval(model, subscriptionState)
         is SubscriptionState.WebSocket -> runReadWebSocket(model, subscriptionState)
@@ -393,6 +420,7 @@ fun <TMessage, TModel> startSubscriptionHandler(
         is Subscription.RobotState -> createRobotStateSubscriptionState(model, subscription)
         is Subscription.RobotStateChanged -> createRobotStateChangedState(model, subscription)
         is Subscription.CANcoderValue -> createCANcoderValueState(model, subscription)
+        is Subscription.CANRangeValue -> createCANRangeValueState(model, subscription)
         is Subscription.PigeonValue -> createPigeonValueState(model, subscription)
         is Subscription.Interval -> createInterval(model, subscription)
         is Subscription.WebSocket -> createWebSocket(model, subscription)
@@ -415,6 +443,7 @@ fun <TMessage, TModel> stopSubscriptionHandler(
         is SubscriptionState.RobotState -> model
         is SubscriptionState.RobotStateChanged -> model
         is SubscriptionState.CANcoderValue -> model
+        is SubscriptionState.CANRangeValue -> model
         is SubscriptionState.PigeonValue -> model
         is SubscriptionState.TalonValue -> model
         is SubscriptionState.Interval -> model
@@ -604,6 +633,36 @@ fun <TMessage, TModel> runReadCANcoder(
         val updatedState =
             state.copy(
                 lastReadCANcoderValue = newSnapshot,
+            )
+        Triple(model, updatedState, Maybe.Some(state.config.message(newSnapshot)))
+    } else {
+        Triple(model, state, Maybe.None)
+    }
+}
+
+fun <TMessage, TModel> runReadCANRange(
+    model: RoboRioModel<TMessage, TModel>,
+    state: SubscriptionState.CANRangeValue<TMessage>,
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>>{
+    val distanceSignal = state.config.token.device.distance
+
+    val currentDistanceTimeStamp = distanceSignal.timestamp
+
+    val updated = !(currentDistanceTimeStamp.equals(state.lastReadValue.distance.timestamp))
+
+    return if (updated) {
+        val newSnapshot =
+            CanDeviceSnapshot.CanRangeSnapshot(
+                distance =
+                    SignalValue<Double>(
+                        value = distanceSignal.valueAsDouble,
+                        timestamp = currentDistanceTimeStamp,
+                        status = distanceSignal.status,
+                    )
+            )
+        val updatedState =
+            state.copy(
+                lastReadValue = newSnapshot,
             )
         Triple(model, updatedState, Maybe.Some(state.config.message(newSnapshot)))
     } else {
