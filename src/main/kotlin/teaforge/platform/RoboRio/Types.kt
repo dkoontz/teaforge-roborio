@@ -3,9 +3,9 @@ package teaforge.platform.RoboRio
 import com.ctre.phoenix6.StatusCode
 import com.ctre.phoenix6.Timestamp
 import com.ctre.phoenix6.hardware.CANcoder
+import com.ctre.phoenix6.hardware.CANrange
 import com.ctre.phoenix6.hardware.Pigeon2
 import com.ctre.phoenix6.hardware.TalonFX
-import com.ctre.phoenix6.hardware.CANrange
 import com.revrobotics.REVLibError
 import com.revrobotics.spark.SparkMax
 import edu.wpi.first.wpilibj.AnalogInput
@@ -251,7 +251,7 @@ sealed interface CanDeviceSnapshot {
     ) : CanDeviceSnapshot
 
     data class CanRangeSnapshot(
-        val distance: SignalValue<Double>
+        val distance: SignalValue<Double>,
     ) : CanDeviceSnapshot
 
     data class PigeonSnapshot(

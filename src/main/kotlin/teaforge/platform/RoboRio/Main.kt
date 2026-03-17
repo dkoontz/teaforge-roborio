@@ -684,7 +684,7 @@ fun <TMessage, TNewMessage> mapSubscription(
             Subscription.CANRangeValue(
                 id = subscription.id,
                 token = subscription.token,
-                message = { snapshot -> mapFunction(subscription.message(snapshot)) }
+                message = { snapshot -> mapFunction(subscription.message(snapshot)) },
             )
         }
 

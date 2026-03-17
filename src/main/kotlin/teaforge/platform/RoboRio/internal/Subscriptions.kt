@@ -261,7 +261,7 @@ fun <TMessage, TModel> createCANcoderValueState(
 fun <TMessage, TModel> createCANRangeValueState(
     model: RoboRioModel<TMessage, TModel>,
     config: Subscription.CANRangeValue<TMessage>,
-): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>>{
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
     val canRange = config.token.device
 
     val distance: StatusSignal<Distance> = canRange.distance
@@ -271,8 +271,8 @@ fun <TMessage, TModel> createCANRangeValueState(
             config = config,
             lastReadValue =
                 CanDeviceSnapshot.CanRangeSnapshot(
-                    distance = statusSignalToSignalValue(distance)
-                )
+                    distance = statusSignalToSignalValue(distance),
+                ),
         )
 
     return model to subscriptionState
@@ -643,7 +643,7 @@ fun <TMessage, TModel> runReadCANcoder(
 fun <TMessage, TModel> runReadCANRange(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.CANRangeValue<TMessage>,
-): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>>{
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
     val distanceSignal = state.config.token.device.distance
 
     val currentDistanceTimeStamp = distanceSignal.timestamp
@@ -658,7 +658,7 @@ fun <TMessage, TModel> runReadCANRange(
                         value = distanceSignal.valueAsDouble,
                         timestamp = currentDistanceTimeStamp,
                         status = distanceSignal.status,
-                    )
+                    ),
             )
         val updatedState =
             state.copy(
