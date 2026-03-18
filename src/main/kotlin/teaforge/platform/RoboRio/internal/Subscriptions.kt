@@ -649,7 +649,7 @@ fun <TMessage, TModel> runReadCANRange(
 
     val updated = !(currentDistanceTimeStamp.equals(state.lastReadValue.distance.timestamp))
 
-    return if (updated) {
+    return if (true) {
         val newSnapshot =
             CanDeviceSnapshot.CanRangeSnapshot(
                 distance =

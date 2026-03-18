@@ -224,6 +224,7 @@ enum class CanDeviceType {
     Talon,
     Encoder,
     Pigeon,
+    Range,
 }
 
 sealed interface GamepadButtonState {

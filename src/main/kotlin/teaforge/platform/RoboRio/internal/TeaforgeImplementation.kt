@@ -125,7 +125,7 @@ fun <TMessage, TModel> createRoboRioRunner(
     RoboRioModel<TMessage, TModel>,
     Subscription<TMessage>,
     SubscriptionState<TMessage>,
-> {
+    > {
     val loggerStatus = createLoggerStatus(debugLogging)
 
     val runnerConfig:
@@ -136,7 +136,7 @@ fun <TMessage, TModel> createRoboRioRunner(
             RoboRioModel<TMessage, TModel>,
             Subscription<TMessage>,
             SubscriptionState<TMessage>,
-        > =
+            > =
         ProgramRunnerConfig(
             initRunner = ::initRoboRioRunner,
             processEffect = ::processEffect,
