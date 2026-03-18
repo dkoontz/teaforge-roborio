@@ -142,6 +142,11 @@ sealed interface Effect<out TMessage> {
             val id: Int,
             val message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
         ) : InitCanDevice<TMessage>
+
+        data class Range<TMessage>(
+            val id: Int,
+            val message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
+        ) : InitCanDevice<TMessage>
     }
 
     sealed interface ConfigCanDevice<TMessage> : Effect<TMessage> {
@@ -454,6 +459,13 @@ fun <TMessage, TNewMessage> mapEffect(
 
         is Effect.InitCanDevice.Pigeon -> {
             Effect.InitCanDevice.Pigeon(
+                id = effect.id,
+                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
+            )
+        }
+
+        is Effect.InitCanDevice.Range -> {
+            Effect.InitCanDevice.Range(
                 id = effect.id,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )

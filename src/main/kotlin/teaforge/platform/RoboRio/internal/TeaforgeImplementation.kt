@@ -5,6 +5,7 @@ import com.ctre.phoenix6.Orchestra
 import com.ctre.phoenix6.StatusCode
 import com.ctre.phoenix6.controls.VoltageOut
 import com.ctre.phoenix6.hardware.CANcoder
+import com.ctre.phoenix6.hardware.CANrange
 import com.ctre.phoenix6.hardware.Pigeon2
 import com.ctre.phoenix6.hardware.TalonFX
 import com.revrobotics.REVLibError
@@ -124,7 +125,7 @@ fun <TMessage, TModel> createRoboRioRunner(
     RoboRioModel<TMessage, TModel>,
     Subscription<TMessage>,
     SubscriptionState<TMessage>,
-    > {
+> {
     val loggerStatus = createLoggerStatus(debugLogging)
 
     val runnerConfig:
@@ -135,7 +136,7 @@ fun <TMessage, TModel> createRoboRioRunner(
             RoboRioModel<TMessage, TModel>,
             Subscription<TMessage>,
             SubscriptionState<TMessage>,
-            > =
+        > =
         ProgramRunnerConfig(
             initRunner = ::initRoboRioRunner,
             processEffect = ::processEffect,
@@ -650,6 +651,24 @@ fun <TMessage, TModel> processEffect(
                     if (status.isOK) {
                         success(
                             CanDeviceToken.PigeonToken(effect.id, pigeon),
+                            effect.id,
+                            effect.message,
+                        )
+                    } else {
+                        failure(
+                            Error.PhoenixError.PhoenixInitializationError(effect.id, status),
+                            effect.id,
+                            effect.message,
+                        )
+                    }
+                }
+
+                is Effect.InitCanDevice.Range -> {
+                    val range = CANrange(effect.id)
+                    val status = range.supplyVoltage.status
+                    if (status.isOK) {
+                        success(
+                            CanDeviceToken.CANRangeToken(effect.id, range),
                             effect.id,
                             effect.message,
                         )

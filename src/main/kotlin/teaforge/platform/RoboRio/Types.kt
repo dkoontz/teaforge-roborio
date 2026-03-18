@@ -216,7 +216,7 @@ sealed interface CanDeviceToken {
     data class CANRangeToken internal constructor(
         val id: Int,
         val device: CANrange,
-    )
+    ) : CanDeviceToken
 }
 
 enum class CanDeviceType {
