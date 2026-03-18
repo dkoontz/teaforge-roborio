@@ -12,7 +12,7 @@ import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.AnalogOutput
 import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.DigitalOutput
-import edu.wpi.first.wpilibj.motorcontrol.Spark
+import edu.wpi.first.wpilibj.Servo
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import org.zeromq.ZContext
@@ -152,7 +152,7 @@ data class AnalogInputToken internal constructor(
 
 data class PwmOutputToken internal constructor(
     val port: PwmPort,
-    val device: Spark,
+    val device: Servo,
 )
 
 data class HidInputToken internal constructor(
@@ -242,6 +242,7 @@ sealed interface CanDeviceSnapshot {
     data class TalonSnapshot(
         val position: SignalValue<Double>,
         val velocity: SignalValue<Double>,
+        val motorVoltage: SignalValue<Double>,
     ) : CanDeviceSnapshot
 
     data class EncoderSnapshot(

@@ -3,6 +3,7 @@ package teaforge.platform.RoboRio.internal
 import com.ctre.phoenix6.CANBus
 import com.ctre.phoenix6.Orchestra
 import com.ctre.phoenix6.StatusCode
+import com.ctre.phoenix6.controls.VoltageOut
 import com.ctre.phoenix6.hardware.CANcoder
 import com.ctre.phoenix6.hardware.Pigeon2
 import com.ctre.phoenix6.hardware.TalonFX
@@ -15,7 +16,7 @@ import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.AnalogOutput
 import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.DigitalOutput
-import edu.wpi.first.wpilibj.motorcontrol.Spark
+import edu.wpi.first.wpilibj.Servo
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
@@ -123,7 +124,7 @@ fun <TMessage, TModel> createRoboRioRunner(
     RoboRioModel<TMessage, TModel>,
     Subscription<TMessage>,
     SubscriptionState<TMessage>,
-    > {
+> {
     val loggerStatus = createLoggerStatus(debugLogging)
 
     val runnerConfig:
@@ -134,7 +135,7 @@ fun <TMessage, TModel> createRoboRioRunner(
             RoboRioModel<TMessage, TModel>,
             Subscription<TMessage>,
             SubscriptionState<TMessage>,
-            > =
+        > =
         ProgramRunnerConfig(
             initRunner = ::initRoboRioRunner,
             processEffect = ::processEffect,
@@ -355,7 +356,7 @@ fun <TMessage, TModel> processEffect(
                 // Configure the PWM port for output using WPILib
                 try {
                     val portId = pwmPortToInt(effect.port)
-                    val pwmOutput = Spark(portId)
+                    val pwmOutput = Servo(portId)
                     // Set the port to the initial speed
                     pwmOutput.set(effect.initialSpeed)
 
@@ -460,7 +461,6 @@ fun <TMessage, TModel> processEffect(
             try {
                 val status = effect.token.orchestra.stop()
                 if (status.isOK) {
-                    effect.token.orchestra.close()
                     val result = Result.Success<Unit, Error>(Unit)
                     EffectResult.Sync(model, Maybe.Some(effect.message(result)))
                 } else {
@@ -485,6 +485,13 @@ fun <TMessage, TModel> processEffect(
                 is CanDeviceToken.MotorToken.TalonMotorToken -> effect.motor.device.set(effect.value)
                 is CanDeviceToken.MotorToken.NeoMotorToken -> effect.motor.device.set(effect.value)
             }
+            return EffectResult.Sync(model, Maybe.None)
+        }
+
+        is Effect.SetTalonVoltage -> {
+            val voltageRequest = VoltageOut(effect.voltage)
+            effect.talon.device.setControl(voltageRequest)
+
             return EffectResult.Sync(model, Maybe.None)
         }
 
