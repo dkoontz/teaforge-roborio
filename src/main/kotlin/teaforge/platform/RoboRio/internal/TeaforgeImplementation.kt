@@ -356,6 +356,17 @@ fun <TMessage, TModel> processEffect(
                 try {
                     val portId = pwmPortToInt(effect.port)
                     val pwmOutput = Servo(portId)
+
+                    val center = (effect.minBoundMicroseconds + effect.maxBoundMicroseconds) / 2
+                    val range = effect.maxBoundMicroseconds - effect.minBoundMicroseconds
+                    val deadband = (effect.deadbandPercent * range).toInt()
+                    pwmOutput.setBoundsMicroseconds(
+                        effect.maxBoundMicroseconds,
+                        center + deadband,
+                        center,
+                        center - deadband,
+                        effect.minBoundMicroseconds,
+                    )
                     // Set the port to the initial speed
                     pwmOutput.set(effect.initialSpeed)
 
