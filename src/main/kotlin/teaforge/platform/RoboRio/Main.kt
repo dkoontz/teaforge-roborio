@@ -105,6 +105,9 @@ sealed interface Effect<out TMessage> {
 
     data class InitPwmPortForOutput<TMessage>(
         val port: PwmPort,
+        val minBoundMicroseconds: Int = 1000,
+        val maxBoundMicroseconds: Int = 2000,
+        val deadbandPercent: Double = 0.05,
         val initialSpeed: Double,
         val message: (Result<PwmOutputToken, Error>) -> TMessage,
     ) : Effect<TMessage>
