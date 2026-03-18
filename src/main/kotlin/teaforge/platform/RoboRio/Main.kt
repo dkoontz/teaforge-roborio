@@ -145,6 +145,11 @@ sealed interface Effect<out TMessage> {
             val id: Int,
             val message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
         ) : InitCanDevice<TMessage>
+
+        data class Range<TMessage>(
+            val id: Int,
+            val message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
+        ) : InitCanDevice<TMessage>
     }
 
     sealed interface ConfigCanDevice<TMessage> : Effect<TMessage> {
@@ -279,6 +284,12 @@ sealed interface Subscription<out TMessage> {
         val id: SubscriptionIdentifier,
         val token: CanDeviceToken.EncoderToken,
         val message: (CanDeviceSnapshot.EncoderSnapshot) -> TMessage,
+    ) : Subscription<TMessage>
+
+    data class CANRangeValue<TMessage>(
+        val id: SubscriptionIdentifier,
+        val token: CanDeviceToken.CANRangeToken,
+        val message: (CanDeviceSnapshot.CanRangeSnapshot) -> TMessage,
     ) : Subscription<TMessage>
 
     data class PigeonValue<TMessage>(
@@ -451,6 +462,13 @@ fun <TMessage, TNewMessage> mapEffect(
 
         is Effect.InitCanDevice.Pigeon -> {
             Effect.InitCanDevice.Pigeon(
+                id = effect.id,
+                message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
+            )
+        }
+
+        is Effect.InitCanDevice.Range -> {
+            Effect.InitCanDevice.Range(
                 id = effect.id,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )
@@ -681,6 +699,14 @@ fun <TMessage, TNewMessage> mapSubscription(
 
         is CANcoderValue -> {
             CANcoderValue(
+                id = subscription.id,
+                token = subscription.token,
+                message = { snapshot -> mapFunction(subscription.message(snapshot)) },
+            )
+        }
+
+        is Subscription.CANRangeValue -> {
+            Subscription.CANRangeValue(
                 id = subscription.id,
                 token = subscription.token,
                 message = { snapshot -> mapFunction(subscription.message(snapshot)) },
