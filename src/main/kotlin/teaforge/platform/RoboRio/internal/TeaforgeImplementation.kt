@@ -14,8 +14,6 @@ import com.revrobotics.spark.SparkMax
 import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.net.PortForwarder
 import edu.wpi.first.networktables.NetworkTableInstance
-import teaforge.platform.RoboRio.NetworkTablePublisherToken
-import teaforge.platform.RoboRio.NetworkTableToken
 import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.AnalogOutput
 import edu.wpi.first.wpilibj.DigitalInput
@@ -47,6 +45,8 @@ import teaforge.platform.RoboRio.Effect
 import teaforge.platform.RoboRio.Error
 import teaforge.platform.RoboRio.HidInputToken
 import teaforge.platform.RoboRio.LogFile
+import teaforge.platform.RoboRio.NetworkTablePublisherToken
+import teaforge.platform.RoboRio.NetworkTableToken
 import teaforge.platform.RoboRio.OrchestraToken
 import teaforge.platform.RoboRio.PwmOutputToken
 import teaforge.platform.RoboRio.PwmPort
@@ -855,9 +855,10 @@ fun <TMessage, TModel> processEffect(
                     val result = Result.Success<NetworkTableToken, Error>(token)
                     EffectResult.Sync(newModel, Maybe.Some(effect.message(result)))
                 } catch (e: Exception) {
-                    val result = Result.Error<NetworkTableToken, Error>(
-                        Error.NetworkTableError(e.message ?: "Unknown error initializing NetworkTable"),
-                    )
+                    val result =
+                        Result.Error<NetworkTableToken, Error>(
+                            Error.NetworkTableError(e.message ?: "Unknown error initializing NetworkTable"),
+                        )
                     EffectResult.Sync(model, Maybe.Some(effect.message(result)))
                 }
             }
@@ -881,103 +882,123 @@ fun <TMessage, TModel> processEffect(
                 } catch (e: Exception) {
                     EffectResult.Sync(
                         model,
-                        Maybe.Some(message(Result.Error(Error.NetworkTableError(e.message ?: "Unknown error creating publisher")))),
+                        Maybe.Some(
+                            message(
+                                Result.Error(Error.NetworkTableError(e.message ?: "Unknown error creating publisher")),
+                            ),
+                        ),
                     )
                 }
             }
 
             when (effect) {
                 is Effect.InitNetworkTablePublisher.Double -> {
-                    val exists = model.networkTablePublisherTokens
-                        .filterIsInstance<NetworkTablePublisherToken.DoublePublisherToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTablePublisherTokens
+                            .filterIsInstance<NetworkTablePublisherToken.DoublePublisherToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initPublisher(effect.table.name, effect.topicName, exists, {
                         NetworkTablePublisherToken.DoublePublisherToken(
-                            effect.table.name, effect.topicName,
+                            effect.table.name,
+                            effect.topicName,
                             effect.table.table.getDoubleTopic(effect.topicName).publish(),
                         )
                     }, effect.message)
                 }
 
                 is Effect.InitNetworkTablePublisher.String -> {
-                    val exists = model.networkTablePublisherTokens
-                        .filterIsInstance<NetworkTablePublisherToken.StringPublisherToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTablePublisherTokens
+                            .filterIsInstance<NetworkTablePublisherToken.StringPublisherToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initPublisher(effect.table.name, effect.topicName, exists, {
                         NetworkTablePublisherToken.StringPublisherToken(
-                            effect.table.name, effect.topicName,
+                            effect.table.name,
+                            effect.topicName,
                             effect.table.table.getStringTopic(effect.topicName).publish(),
                         )
                     }, effect.message)
                 }
 
                 is Effect.InitNetworkTablePublisher.Integer -> {
-                    val exists = model.networkTablePublisherTokens
-                        .filterIsInstance<NetworkTablePublisherToken.IntegerPublisherToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTablePublisherTokens
+                            .filterIsInstance<NetworkTablePublisherToken.IntegerPublisherToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initPublisher(effect.table.name, effect.topicName, exists, {
                         NetworkTablePublisherToken.IntegerPublisherToken(
-                            effect.table.name, effect.topicName,
+                            effect.table.name,
+                            effect.topicName,
                             effect.table.table.getIntegerTopic(effect.topicName).publish(),
                         )
                     }, effect.message)
                 }
 
                 is Effect.InitNetworkTablePublisher.Boolean -> {
-                    val exists = model.networkTablePublisherTokens
-                        .filterIsInstance<NetworkTablePublisherToken.BooleanPublisherToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTablePublisherTokens
+                            .filterIsInstance<NetworkTablePublisherToken.BooleanPublisherToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initPublisher(effect.table.name, effect.topicName, exists, {
                         NetworkTablePublisherToken.BooleanPublisherToken(
-                            effect.table.name, effect.topicName,
+                            effect.table.name,
+                            effect.topicName,
                             effect.table.table.getBooleanTopic(effect.topicName).publish(),
                         )
                     }, effect.message)
                 }
 
                 is Effect.InitNetworkTablePublisher.DoubleArray -> {
-                    val exists = model.networkTablePublisherTokens
-                        .filterIsInstance<NetworkTablePublisherToken.DoubleArrayPublisherToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTablePublisherTokens
+                            .filterIsInstance<NetworkTablePublisherToken.DoubleArrayPublisherToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initPublisher(effect.table.name, effect.topicName, exists, {
                         NetworkTablePublisherToken.DoubleArrayPublisherToken(
-                            effect.table.name, effect.topicName,
+                            effect.table.name,
+                            effect.topicName,
                             effect.table.table.getDoubleArrayTopic(effect.topicName).publish(),
                         )
                     }, effect.message)
                 }
 
                 is Effect.InitNetworkTablePublisher.StringArray -> {
-                    val exists = model.networkTablePublisherTokens
-                        .filterIsInstance<NetworkTablePublisherToken.StringArrayPublisherToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTablePublisherTokens
+                            .filterIsInstance<NetworkTablePublisherToken.StringArrayPublisherToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initPublisher(effect.table.name, effect.topicName, exists, {
                         NetworkTablePublisherToken.StringArrayPublisherToken(
-                            effect.table.name, effect.topicName,
+                            effect.table.name,
+                            effect.topicName,
                             effect.table.table.getStringArrayTopic(effect.topicName).publish(),
                         )
                     }, effect.message)
                 }
 
                 is Effect.InitNetworkTablePublisher.IntegerArray -> {
-                    val exists = model.networkTablePublisherTokens
-                        .filterIsInstance<NetworkTablePublisherToken.IntegerArrayPublisherToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTablePublisherTokens
+                            .filterIsInstance<NetworkTablePublisherToken.IntegerArrayPublisherToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initPublisher(effect.table.name, effect.topicName, exists, {
                         NetworkTablePublisherToken.IntegerArrayPublisherToken(
-                            effect.table.name, effect.topicName,
+                            effect.table.name,
+                            effect.topicName,
                             effect.table.table.getIntegerArrayTopic(effect.topicName).publish(),
                         )
                     }, effect.message)
                 }
 
                 is Effect.InitNetworkTablePublisher.BooleanArray -> {
-                    val exists = model.networkTablePublisherTokens
-                        .filterIsInstance<NetworkTablePublisherToken.BooleanArrayPublisherToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTablePublisherTokens
+                            .filterIsInstance<NetworkTablePublisherToken.BooleanArrayPublisherToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initPublisher(effect.table.name, effect.topicName, exists, {
                         NetworkTablePublisherToken.BooleanArrayPublisherToken(
-                            effect.table.name, effect.topicName,
+                            effect.table.name,
+                            effect.topicName,
                             effect.table.table.getBooleanArrayTopic(effect.topicName).publish(),
                         )
                     }, effect.message)
