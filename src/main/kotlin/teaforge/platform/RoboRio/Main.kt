@@ -215,6 +215,103 @@ sealed interface Effect<out TMessage> {
         val function: () -> TOutput,
         val message: (TOutput) -> TMessage,
     ) : Effect<TMessage>
+
+    data class InitNetworkTable<TMessage>(
+        val name: String,
+        val message: (Result<NetworkTableToken, Error>) -> TMessage,
+    ) : Effect<TMessage>
+
+    sealed interface InitNetworkTablePublisher<TMessage> : Effect<TMessage> {
+        data class Double<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val message: (Result<NetworkTablePublisherToken.DoublePublisherToken, Error>) -> TMessage,
+        ) : InitNetworkTablePublisher<TMessage>
+
+        data class String<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val message: (Result<NetworkTablePublisherToken.StringPublisherToken, Error>) -> TMessage,
+        ) : InitNetworkTablePublisher<TMessage>
+
+        data class Integer<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val message: (Result<NetworkTablePublisherToken.IntegerPublisherToken, Error>) -> TMessage,
+        ) : InitNetworkTablePublisher<TMessage>
+
+        data class Boolean<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val message: (Result<NetworkTablePublisherToken.BooleanPublisherToken, Error>) -> TMessage,
+        ) : InitNetworkTablePublisher<TMessage>
+
+        data class DoubleArray<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val message: (Result<NetworkTablePublisherToken.DoubleArrayPublisherToken, Error>) -> TMessage,
+        ) : InitNetworkTablePublisher<TMessage>
+
+        data class StringArray<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val message: (Result<NetworkTablePublisherToken.StringArrayPublisherToken, Error>) -> TMessage,
+        ) : InitNetworkTablePublisher<TMessage>
+
+        data class IntegerArray<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val message: (Result<NetworkTablePublisherToken.IntegerArrayPublisherToken, Error>) -> TMessage,
+        ) : InitNetworkTablePublisher<TMessage>
+
+        data class BooleanArray<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val message: (Result<NetworkTablePublisherToken.BooleanArrayPublisherToken, Error>) -> TMessage,
+        ) : InitNetworkTablePublisher<TMessage>
+    }
+
+    sealed interface PublishToNetworkTable : Effect<Nothing> {
+        data class Double(
+            val publisher: NetworkTablePublisherToken.DoublePublisherToken,
+            val value: kotlin.Double,
+        ) : PublishToNetworkTable
+
+        data class String(
+            val publisher: NetworkTablePublisherToken.StringPublisherToken,
+            val value: kotlin.String,
+        ) : PublishToNetworkTable
+
+        data class Integer(
+            val publisher: NetworkTablePublisherToken.IntegerPublisherToken,
+            val value: Long,
+        ) : PublishToNetworkTable
+
+        data class Boolean(
+            val publisher: NetworkTablePublisherToken.BooleanPublisherToken,
+            val value: kotlin.Boolean,
+        ) : PublishToNetworkTable
+
+        data class DoubleArray(
+            val publisher: NetworkTablePublisherToken.DoubleArrayPublisherToken,
+            val value: kotlin.DoubleArray,
+        ) : PublishToNetworkTable
+
+        data class StringArray(
+            val publisher: NetworkTablePublisherToken.StringArrayPublisherToken,
+            val value: Array<kotlin.String>,
+        ) : PublishToNetworkTable
+
+        data class IntegerArray(
+            val publisher: NetworkTablePublisherToken.IntegerArrayPublisherToken,
+            val value: LongArray,
+        ) : PublishToNetworkTable
+
+        data class BooleanArray(
+            val publisher: NetworkTablePublisherToken.BooleanArrayPublisherToken,
+            val value: kotlin.BooleanArray,
+        ) : PublishToNetworkTable
+    }
 }
 
 sealed interface Subscription<out TMessage> {
@@ -574,6 +671,86 @@ fun <TMessage, TNewMessage> mapEffect(
                 mapFunction = mapFunction,
             )
         }
+
+        is Effect.InitNetworkTable -> {
+            Effect.InitNetworkTable(
+                name = effect.name,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTablePublisher.Double -> {
+            Effect.InitNetworkTablePublisher.Double(
+                table = effect.table,
+                topicName = effect.topicName,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTablePublisher.String -> {
+            Effect.InitNetworkTablePublisher.String(
+                table = effect.table,
+                topicName = effect.topicName,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTablePublisher.Integer -> {
+            Effect.InitNetworkTablePublisher.Integer(
+                table = effect.table,
+                topicName = effect.topicName,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTablePublisher.Boolean -> {
+            Effect.InitNetworkTablePublisher.Boolean(
+                table = effect.table,
+                topicName = effect.topicName,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTablePublisher.DoubleArray -> {
+            Effect.InitNetworkTablePublisher.DoubleArray(
+                table = effect.table,
+                topicName = effect.topicName,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTablePublisher.StringArray -> {
+            Effect.InitNetworkTablePublisher.StringArray(
+                table = effect.table,
+                topicName = effect.topicName,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTablePublisher.IntegerArray -> {
+            Effect.InitNetworkTablePublisher.IntegerArray(
+                table = effect.table,
+                topicName = effect.topicName,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTablePublisher.BooleanArray -> {
+            Effect.InitNetworkTablePublisher.BooleanArray(
+                table = effect.table,
+                topicName = effect.topicName,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.PublishToNetworkTable.Double -> effect
+        is Effect.PublishToNetworkTable.String -> effect
+        is Effect.PublishToNetworkTable.Integer -> effect
+        is Effect.PublishToNetworkTable.Boolean -> effect
+        is Effect.PublishToNetworkTable.DoubleArray -> effect
+        is Effect.PublishToNetworkTable.StringArray -> effect
+        is Effect.PublishToNetworkTable.IntegerArray -> effect
+        is Effect.PublishToNetworkTable.BooleanArray -> effect
     }
 
 /**
