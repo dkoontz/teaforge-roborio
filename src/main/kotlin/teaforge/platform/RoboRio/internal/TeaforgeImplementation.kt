@@ -34,6 +34,7 @@ import teaforge.SubscriptionIdentifier
 import teaforge.platform.RoboRio.AnalogInputToken
 import teaforge.platform.RoboRio.AnalogOutputToken
 import teaforge.platform.RoboRio.AnalogPort
+import teaforge.platform.RoboRio.CanBusToken
 import teaforge.platform.RoboRio.CanDeviceToken
 import teaforge.platform.RoboRio.DebugLogging
 import teaforge.platform.RoboRio.DigitalInputToken
@@ -104,6 +105,7 @@ private fun createLoggerStatus(debugLogging: DebugLogging): LoggerStatus =
     }
 
 data class RoboRioModel<TMessage, TModel>(
+    val canBusTokens: Set<CanBusToken>,
     val digitalInputTokens: Set<DigitalInputToken>,
     val digitalOutputTokens: Set<DigitalOutputToken>,
     val analogInputTokens: Set<AnalogInputToken>,
@@ -125,7 +127,7 @@ fun <TMessage, TModel> createRoboRioRunner(
     RoboRioModel<TMessage, TModel>,
     Subscription<TMessage>,
     SubscriptionState<TMessage>,
-    > {
+> {
     val loggerStatus = createLoggerStatus(debugLogging)
 
     val runnerConfig:
@@ -136,7 +138,7 @@ fun <TMessage, TModel> createRoboRioRunner(
             RoboRioModel<TMessage, TModel>,
             Subscription<TMessage>,
             SubscriptionState<TMessage>,
-            > =
+        > =
         ProgramRunnerConfig(
             initRunner = ::initRoboRioRunner,
             processEffect = ::processEffect,
@@ -185,9 +187,9 @@ fun <TMessage, TModel> initRoboRioRunner(
     @Suppress("UNUSED_PARAMETER") args: List<String>,
 ): RoboRioModel<TMessage, TModel> {
     // Do any hardware initialization here
-    CANBus()
 
     return RoboRioModel(
+        canBusTokens = emptySet(),
         digitalInputTokens = emptySet(),
         digitalOutputTokens = emptySet(),
         analogInputTokens = emptySet(),
@@ -256,6 +258,37 @@ fun <TMessage, TModel> processEffect(
                         )
                     EffectResult.Sync(model, Maybe.Some(effect.message(result)))
                 }
+            }
+        }
+
+        is Effect.InitCanBus -> {
+            val alreadyInitialized = model.canBusTokens.any { it.name == effect.name }
+            if (alreadyInitialized) {
+                val result = Result.Error<CanBusToken, Error>(Error.AlreadyInitialized)
+                return EffectResult.Sync(model, Maybe.Some(effect.message(result)))
+            }
+
+            val bus = CANBus(effect.name)
+            val status = bus.status
+            if (!status.Status.isOK) {
+                val result =
+                    Result.Error<CanBusToken, Error>(
+                        Error.CanBusInitError("Status error initializing ${effect.name} can bus: status: $status"),
+                    )
+                return EffectResult.Sync(model, Maybe.Some(effect.message(result)))
+            }
+
+            try {
+                val token = CanBusToken(effect.name)
+                val newModel = model.copy(canBusTokens = model.canBusTokens + token)
+                val result = Result.Success<CanBusToken, Error>(token)
+                EffectResult.Sync(newModel, Maybe.Some(effect.message(result)))
+            } catch (e: Exception) {
+                val result =
+                    Result.Error<CanBusToken, Error>(
+                        Error.PortInitializationError(e.message ?: "Unknown error initializing can bus"),
+                    )
+                EffectResult.Sync(model, Maybe.Some(effect.message(result)))
             }
         }
 

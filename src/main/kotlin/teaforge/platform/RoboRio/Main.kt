@@ -57,6 +57,11 @@ sealed interface Effect<out TMessage> {
         val msg: String,
     ) : Effect<Nothing>
 
+    data class InitCanBus<TMessage>(
+        val name: String,
+        val message: (Result<CanBusToken, Error>) -> TMessage,
+    ) : Effect<TMessage>
+
     data class InitDigitalPortForInput<TMessage>(
         val port: DioPort,
         val message: (Result<DigitalInputToken, Error>) -> TMessage,
@@ -127,27 +132,32 @@ sealed interface Effect<out TMessage> {
         sealed interface InitMotor<TMessage> : InitCanDevice<TMessage> {
             data class Neo<TMessage>(
                 val id: Int,
+                val canToken: CanBusToken,
                 val message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
             ) : InitMotor<TMessage>
 
             data class Talon<TMessage>(
                 val id: Int,
+                val canToken: CanBusToken,
                 val message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
             ) : InitMotor<TMessage>
         }
 
         data class Encoder<TMessage>(
             val id: Int,
+            val canToken: CanBusToken,
             val message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
         ) : InitCanDevice<TMessage>
 
         data class Pigeon<TMessage>(
             val id: Int,
+            val canToken: CanBusToken,
             val message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
         ) : InitCanDevice<TMessage>
 
         data class Range<TMessage>(
             val id: Int,
+            val canToken: CanBusToken,
             val message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
         ) : InitCanDevice<TMessage>
     }
@@ -370,6 +380,13 @@ fun <TMessage, TNewMessage> mapEffect(
             effect
         }
 
+        is Effect.InitCanBus -> {
+            Effect.InitCanBus(
+                name = effect.name,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
         is Effect.InitDigitalPortForInput -> {
             Effect.InitDigitalPortForInput(
                 port = effect.port,
@@ -442,6 +459,7 @@ fun <TMessage, TNewMessage> mapEffect(
         is Effect.InitCanDevice.InitMotor.Talon -> {
             Effect.InitCanDevice.InitMotor.Talon(
                 id = effect.id,
+                canToken = effect.canToken,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )
         }
@@ -449,6 +467,7 @@ fun <TMessage, TNewMessage> mapEffect(
         is Effect.InitCanDevice.InitMotor.Neo -> {
             Effect.InitCanDevice.InitMotor.Neo(
                 id = effect.id,
+                canToken = effect.canToken,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )
         }
@@ -456,6 +475,7 @@ fun <TMessage, TNewMessage> mapEffect(
         is Effect.InitCanDevice.Encoder -> {
             Effect.InitCanDevice.Encoder(
                 id = effect.id,
+                canToken = effect.canToken,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )
         }
@@ -463,6 +483,7 @@ fun <TMessage, TNewMessage> mapEffect(
         is Effect.InitCanDevice.Pigeon -> {
             Effect.InitCanDevice.Pigeon(
                 id = effect.id,
+                canToken = effect.canToken,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )
         }
@@ -470,6 +491,7 @@ fun <TMessage, TNewMessage> mapEffect(
         is Effect.InitCanDevice.Range -> {
             Effect.InitCanDevice.Range(
                 id = effect.id,
+                canToken = effect.canToken,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )
         }

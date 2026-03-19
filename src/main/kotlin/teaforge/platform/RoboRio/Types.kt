@@ -10,6 +10,7 @@ import com.revrobotics.REVLibError
 import com.revrobotics.spark.SparkMax
 import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.AnalogOutput
+import edu.wpi.first.wpilibj.CAN
 import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.DigitalOutput
 import edu.wpi.first.wpilibj.Servo
@@ -95,6 +96,10 @@ sealed interface Error {
     data class TCPClientInitError(
         val details: String,
     ) : Error
+
+    data class CanBusInitError(
+        val details: String,
+    ) : Error
 }
 
 enum class DioPort {
@@ -129,6 +134,10 @@ enum class PwmPort {
     Eight,
     Nine,
 }
+
+data class CanBusToken internal constructor(
+    val name: String,
+)
 
 data class DigitalOutputToken internal constructor(
     val port: DioPort,
