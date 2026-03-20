@@ -9,14 +9,22 @@ import com.ctre.phoenix6.hardware.TalonFX
 import com.revrobotics.REVLibError
 import com.revrobotics.spark.SparkMax
 import edu.wpi.first.networktables.BooleanArrayPublisher
+import edu.wpi.first.networktables.BooleanArraySubscriber
 import edu.wpi.first.networktables.BooleanPublisher
+import edu.wpi.first.networktables.BooleanSubscriber
 import edu.wpi.first.networktables.DoubleArrayPublisher
+import edu.wpi.first.networktables.DoubleArraySubscriber
 import edu.wpi.first.networktables.DoublePublisher
+import edu.wpi.first.networktables.DoubleSubscriber
 import edu.wpi.first.networktables.IntegerArrayPublisher
+import edu.wpi.first.networktables.IntegerArraySubscriber
 import edu.wpi.first.networktables.IntegerPublisher
+import edu.wpi.first.networktables.IntegerSubscriber
 import edu.wpi.first.networktables.NetworkTable
 import edu.wpi.first.networktables.StringArrayPublisher
+import edu.wpi.first.networktables.StringArraySubscriber
 import edu.wpi.first.networktables.StringPublisher
+import edu.wpi.first.networktables.StringSubscriber
 import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.AnalogOutput
 import edu.wpi.first.wpilibj.DigitalInput
@@ -236,6 +244,56 @@ sealed interface NetworkTablePublisherToken {
         val topicName: String,
         val publisher: BooleanArrayPublisher,
     ) : NetworkTablePublisherToken
+}
+
+sealed interface NetworkTableSubscriberToken {
+    data class DoubleSubscriberToken internal constructor(
+        val tableName: String,
+        val topicName: String,
+        val subscriber: DoubleSubscriber,
+    ) : NetworkTableSubscriberToken
+
+    data class StringSubscriberToken internal constructor(
+        val tableName: String,
+        val topicName: String,
+        val subscriber: StringSubscriber,
+    ) : NetworkTableSubscriberToken
+
+    data class IntegerSubscriberToken internal constructor(
+        val tableName: String,
+        val topicName: String,
+        val subscriber: IntegerSubscriber,
+    ) : NetworkTableSubscriberToken
+
+    data class BooleanSubscriberToken internal constructor(
+        val tableName: String,
+        val topicName: String,
+        val subscriber: BooleanSubscriber,
+    ) : NetworkTableSubscriberToken
+
+    data class DoubleArraySubscriberToken internal constructor(
+        val tableName: String,
+        val topicName: String,
+        val subscriber: DoubleArraySubscriber,
+    ) : NetworkTableSubscriberToken
+
+    data class StringArraySubscriberToken internal constructor(
+        val tableName: String,
+        val topicName: String,
+        val subscriber: StringArraySubscriber,
+    ) : NetworkTableSubscriberToken
+
+    data class IntegerArraySubscriberToken internal constructor(
+        val tableName: String,
+        val topicName: String,
+        val subscriber: IntegerArraySubscriber,
+    ) : NetworkTableSubscriberToken
+
+    data class BooleanArraySubscriberToken internal constructor(
+        val tableName: String,
+        val topicName: String,
+        val subscriber: BooleanArraySubscriber,
+    ) : NetworkTableSubscriberToken
 }
 
 sealed interface TCPToken

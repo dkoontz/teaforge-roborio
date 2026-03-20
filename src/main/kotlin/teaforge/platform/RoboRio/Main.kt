@@ -172,7 +172,7 @@ sealed interface Effect<out TMessage> {
         ) : ConfigCanDevice<TMessage>
     }
 
-    // refactor to setvoltage
+    // refactor to set voltage
     data class SetCanMotorSpeed(
         val motor: CanDeviceToken.MotorToken,
         val value: Double,
@@ -294,23 +294,81 @@ sealed interface Effect<out TMessage> {
 
         data class DoubleArray(
             val publisher: NetworkTablePublisherToken.DoubleArrayPublisherToken,
-            val value: kotlin.DoubleArray,
+            val value: List<kotlin.Double>,
         ) : PublishToNetworkTable
 
         data class StringArray(
             val publisher: NetworkTablePublisherToken.StringArrayPublisherToken,
-            val value: Array<kotlin.String>,
+            val value: List<kotlin.String>,
         ) : PublishToNetworkTable
 
         data class IntegerArray(
             val publisher: NetworkTablePublisherToken.IntegerArrayPublisherToken,
-            val value: LongArray,
+            val value: List<Long>,
         ) : PublishToNetworkTable
 
         data class BooleanArray(
             val publisher: NetworkTablePublisherToken.BooleanArrayPublisherToken,
-            val value: kotlin.BooleanArray,
+            val value: List<kotlin.Boolean>,
         ) : PublishToNetworkTable
+    }
+
+    sealed interface InitNetworkTableSubscriber<TMessage> : Effect<TMessage> {
+        data class Double<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val defaultValue: kotlin.Double,
+            val message: (Result<NetworkTableSubscriberToken.DoubleSubscriberToken, Error>) -> TMessage,
+        ) : InitNetworkTableSubscriber<TMessage>
+
+        data class String<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val defaultValue: kotlin.String,
+            val message: (Result<NetworkTableSubscriberToken.StringSubscriberToken, Error>) -> TMessage,
+        ) : InitNetworkTableSubscriber<TMessage>
+
+        data class Integer<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val defaultValue: Long,
+            val message: (Result<NetworkTableSubscriberToken.IntegerSubscriberToken, Error>) -> TMessage,
+        ) : InitNetworkTableSubscriber<TMessage>
+
+        data class Boolean<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val defaultValue: kotlin.Boolean,
+            val message: (Result<NetworkTableSubscriberToken.BooleanSubscriberToken, Error>) -> TMessage,
+        ) : InitNetworkTableSubscriber<TMessage>
+
+        data class DoubleArray<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val defaultValue: List<kotlin.Double>,
+            val message: (Result<NetworkTableSubscriberToken.DoubleArraySubscriberToken, Error>) -> TMessage,
+        ) : InitNetworkTableSubscriber<TMessage>
+
+        data class StringArray<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val defaultValue: List<kotlin.String>,
+            val message: (Result<NetworkTableSubscriberToken.StringArraySubscriberToken, Error>) -> TMessage,
+        ) : InitNetworkTableSubscriber<TMessage>
+
+        data class IntegerArray<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val defaultValue: List<Long>,
+            val message: (Result<NetworkTableSubscriberToken.IntegerArraySubscriberToken, Error>) -> TMessage,
+        ) : InitNetworkTableSubscriber<TMessage>
+
+        data class BooleanArray<TMessage>(
+            val table: NetworkTableToken,
+            val topicName: kotlin.String,
+            val defaultValue: List<kotlin.Boolean>,
+            val message: (Result<NetworkTableSubscriberToken.BooleanArraySubscriberToken, Error>) -> TMessage,
+        ) : InitNetworkTableSubscriber<TMessage>
     }
 }
 
@@ -413,6 +471,58 @@ sealed interface Subscription<out TMessage> {
         val token: TCPToken,
         val message: (List<String>) -> TMessage,
     ) : Subscription<TMessage>
+
+    sealed interface NetworkTableValue<TMessage> : Subscription<TMessage> {
+        val id: SubscriptionIdentifier
+
+        data class Double<TMessage>(
+            override val id: SubscriptionIdentifier,
+            val token: NetworkTableSubscriberToken.DoubleSubscriberToken,
+            val message: (kotlin.Double) -> TMessage,
+        ) : NetworkTableValue<TMessage>
+
+        data class String<TMessage>(
+            override val id: SubscriptionIdentifier,
+            val token: NetworkTableSubscriberToken.StringSubscriberToken,
+            val message: (kotlin.String) -> TMessage,
+        ) : NetworkTableValue<TMessage>
+
+        data class Integer<TMessage>(
+            override val id: SubscriptionIdentifier,
+            val token: NetworkTableSubscriberToken.IntegerSubscriberToken,
+            val message: (Long) -> TMessage,
+        ) : NetworkTableValue<TMessage>
+
+        data class Boolean<TMessage>(
+            override val id: SubscriptionIdentifier,
+            val token: NetworkTableSubscriberToken.BooleanSubscriberToken,
+            val message: (kotlin.Boolean) -> TMessage,
+        ) : NetworkTableValue<TMessage>
+
+        data class DoubleArray<TMessage>(
+            override val id: SubscriptionIdentifier,
+            val token: NetworkTableSubscriberToken.DoubleArraySubscriberToken,
+            val message: (List<kotlin.Double>) -> TMessage,
+        ) : NetworkTableValue<TMessage>
+
+        data class StringArray<TMessage>(
+            override val id: SubscriptionIdentifier,
+            val token: NetworkTableSubscriberToken.StringArraySubscriberToken,
+            val message: (List<kotlin.String>) -> TMessage,
+        ) : NetworkTableValue<TMessage>
+
+        data class IntegerArray<TMessage>(
+            override val id: SubscriptionIdentifier,
+            val token: NetworkTableSubscriberToken.IntegerArraySubscriberToken,
+            val message: (List<Long>) -> TMessage,
+        ) : NetworkTableValue<TMessage>
+
+        data class BooleanArray<TMessage>(
+            override val id: SubscriptionIdentifier,
+            val token: NetworkTableSubscriberToken.BooleanArraySubscriberToken,
+            val message: (List<kotlin.Boolean>) -> TMessage,
+        ) : NetworkTableValue<TMessage>
+    }
 }
 
 /**
@@ -751,6 +861,78 @@ fun <TMessage, TNewMessage> mapEffect(
         is Effect.PublishToNetworkTable.StringArray -> effect
         is Effect.PublishToNetworkTable.IntegerArray -> effect
         is Effect.PublishToNetworkTable.BooleanArray -> effect
+
+        is Effect.InitNetworkTableSubscriber.Double -> {
+            Effect.InitNetworkTableSubscriber.Double(
+                table = effect.table,
+                topicName = effect.topicName,
+                defaultValue = effect.defaultValue,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTableSubscriber.String -> {
+            Effect.InitNetworkTableSubscriber.String(
+                table = effect.table,
+                topicName = effect.topicName,
+                defaultValue = effect.defaultValue,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTableSubscriber.Integer -> {
+            Effect.InitNetworkTableSubscriber.Integer(
+                table = effect.table,
+                topicName = effect.topicName,
+                defaultValue = effect.defaultValue,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTableSubscriber.Boolean -> {
+            Effect.InitNetworkTableSubscriber.Boolean(
+                table = effect.table,
+                topicName = effect.topicName,
+                defaultValue = effect.defaultValue,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTableSubscriber.DoubleArray -> {
+            Effect.InitNetworkTableSubscriber.DoubleArray(
+                table = effect.table,
+                topicName = effect.topicName,
+                defaultValue = effect.defaultValue,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTableSubscriber.StringArray -> {
+            Effect.InitNetworkTableSubscriber.StringArray(
+                table = effect.table,
+                topicName = effect.topicName,
+                defaultValue = effect.defaultValue,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTableSubscriber.IntegerArray -> {
+            Effect.InitNetworkTableSubscriber.IntegerArray(
+                table = effect.table,
+                topicName = effect.topicName,
+                defaultValue = effect.defaultValue,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
+
+        is Effect.InitNetworkTableSubscriber.BooleanArray -> {
+            Effect.InitNetworkTableSubscriber.BooleanArray(
+                table = effect.table,
+                topicName = effect.topicName,
+                defaultValue = effect.defaultValue,
+                message = { result -> mapFunction(effect.message(result)) },
+            )
+        }
     }
 
 /**
@@ -928,6 +1110,70 @@ fun <TMessage, TNewMessage> mapSubscription(
                 id = subscription.id,
                 token = subscription.token,
                 message = { info -> mapFunction(subscription.message(info)) },
+            )
+        }
+
+        is Subscription.NetworkTableValue.Double -> {
+            Subscription.NetworkTableValue.Double(
+                id = subscription.id,
+                token = subscription.token,
+                message = { value -> mapFunction(subscription.message(value)) },
+            )
+        }
+
+        is Subscription.NetworkTableValue.String -> {
+            Subscription.NetworkTableValue.String(
+                id = subscription.id,
+                token = subscription.token,
+                message = { value -> mapFunction(subscription.message(value)) },
+            )
+        }
+
+        is Subscription.NetworkTableValue.Integer -> {
+            Subscription.NetworkTableValue.Integer(
+                id = subscription.id,
+                token = subscription.token,
+                message = { value -> mapFunction(subscription.message(value)) },
+            )
+        }
+
+        is Subscription.NetworkTableValue.Boolean -> {
+            Subscription.NetworkTableValue.Boolean(
+                id = subscription.id,
+                token = subscription.token,
+                message = { value -> mapFunction(subscription.message(value)) },
+            )
+        }
+
+        is Subscription.NetworkTableValue.DoubleArray -> {
+            Subscription.NetworkTableValue.DoubleArray(
+                id = subscription.id,
+                token = subscription.token,
+                message = { value -> mapFunction(subscription.message(value)) },
+            )
+        }
+
+        is Subscription.NetworkTableValue.StringArray -> {
+            Subscription.NetworkTableValue.StringArray(
+                id = subscription.id,
+                token = subscription.token,
+                message = { value -> mapFunction(subscription.message(value)) },
+            )
+        }
+
+        is Subscription.NetworkTableValue.IntegerArray -> {
+            Subscription.NetworkTableValue.IntegerArray(
+                id = subscription.id,
+                token = subscription.token,
+                message = { value -> mapFunction(subscription.message(value)) },
+            )
+        }
+
+        is Subscription.NetworkTableValue.BooleanArray -> {
+            Subscription.NetworkTableValue.BooleanArray(
+                id = subscription.id,
+                token = subscription.token,
+                message = { value -> mapFunction(subscription.message(value)) },
             )
         }
     }
