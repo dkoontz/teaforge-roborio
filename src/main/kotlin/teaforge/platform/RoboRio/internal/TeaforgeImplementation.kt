@@ -1075,97 +1075,121 @@ fun <TMessage, TModel> processEffect(
 
             when (effect) {
                 is Effect.InitNetworkTableSubscriber.Double -> {
-                    val exists = model.networkTableSubscriberTokens
-                        .filterIsInstance<NetworkTableSubscriberToken.DoubleSubscriberToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTableSubscriberTokens
+                            .filterIsInstance<NetworkTableSubscriberToken.DoubleSubscriberToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initSubscriber(exists, {
                         NetworkTableSubscriberToken.DoubleSubscriberToken(
-                            effect.table.name, effect.topicName,
+                            effect.table.name,
+                            effect.topicName,
                             effect.table.table.getDoubleTopic(effect.topicName).subscribe(effect.defaultValue),
                         )
                     }, effect.message)
                 }
 
                 is Effect.InitNetworkTableSubscriber.String -> {
-                    val exists = model.networkTableSubscriberTokens
-                        .filterIsInstance<NetworkTableSubscriberToken.StringSubscriberToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTableSubscriberTokens
+                            .filterIsInstance<NetworkTableSubscriberToken.StringSubscriberToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initSubscriber(exists, {
                         NetworkTableSubscriberToken.StringSubscriberToken(
-                            effect.table.name, effect.topicName,
+                            effect.table.name,
+                            effect.topicName,
                             effect.table.table.getStringTopic(effect.topicName).subscribe(effect.defaultValue),
                         )
                     }, effect.message)
                 }
 
                 is Effect.InitNetworkTableSubscriber.Integer -> {
-                    val exists = model.networkTableSubscriberTokens
-                        .filterIsInstance<NetworkTableSubscriberToken.IntegerSubscriberToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTableSubscriberTokens
+                            .filterIsInstance<NetworkTableSubscriberToken.IntegerSubscriberToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initSubscriber(exists, {
                         NetworkTableSubscriberToken.IntegerSubscriberToken(
-                            effect.table.name, effect.topicName,
+                            effect.table.name,
+                            effect.topicName,
                             effect.table.table.getIntegerTopic(effect.topicName).subscribe(effect.defaultValue),
                         )
                     }, effect.message)
                 }
 
                 is Effect.InitNetworkTableSubscriber.Boolean -> {
-                    val exists = model.networkTableSubscriberTokens
-                        .filterIsInstance<NetworkTableSubscriberToken.BooleanSubscriberToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTableSubscriberTokens
+                            .filterIsInstance<NetworkTableSubscriberToken.BooleanSubscriberToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initSubscriber(exists, {
                         NetworkTableSubscriberToken.BooleanSubscriberToken(
-                            effect.table.name, effect.topicName,
+                            effect.table.name,
+                            effect.topicName,
                             effect.table.table.getBooleanTopic(effect.topicName).subscribe(effect.defaultValue),
                         )
                     }, effect.message)
                 }
 
                 is Effect.InitNetworkTableSubscriber.DoubleArray -> {
-                    val exists = model.networkTableSubscriberTokens
-                        .filterIsInstance<NetworkTableSubscriberToken.DoubleArraySubscriberToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTableSubscriberTokens
+                            .filterIsInstance<NetworkTableSubscriberToken.DoubleArraySubscriberToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initSubscriber(exists, {
                         NetworkTableSubscriberToken.DoubleArraySubscriberToken(
-                            effect.table.name, effect.topicName,
-                            effect.table.table.getDoubleArrayTopic(effect.topicName).subscribe(effect.defaultValue.toDoubleArray()),
+                            effect.table.name,
+                            effect.topicName,
+                            effect.table.table.getDoubleArrayTopic(
+                                effect.topicName,
+                            ).subscribe(effect.defaultValue.toDoubleArray()),
                         )
                     }, effect.message)
                 }
 
                 is Effect.InitNetworkTableSubscriber.StringArray -> {
-                    val exists = model.networkTableSubscriberTokens
-                        .filterIsInstance<NetworkTableSubscriberToken.StringArraySubscriberToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTableSubscriberTokens
+                            .filterIsInstance<NetworkTableSubscriberToken.StringArraySubscriberToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initSubscriber(exists, {
                         NetworkTableSubscriberToken.StringArraySubscriberToken(
-                            effect.table.name, effect.topicName,
-                            effect.table.table.getStringArrayTopic(effect.topicName).subscribe(effect.defaultValue.toTypedArray()),
+                            effect.table.name,
+                            effect.topicName,
+                            effect.table.table.getStringArrayTopic(
+                                effect.topicName,
+                            ).subscribe(effect.defaultValue.toTypedArray()),
                         )
                     }, effect.message)
                 }
 
                 is Effect.InitNetworkTableSubscriber.IntegerArray -> {
-                    val exists = model.networkTableSubscriberTokens
-                        .filterIsInstance<NetworkTableSubscriberToken.IntegerArraySubscriberToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTableSubscriberTokens
+                            .filterIsInstance<NetworkTableSubscriberToken.IntegerArraySubscriberToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initSubscriber(exists, {
                         NetworkTableSubscriberToken.IntegerArraySubscriberToken(
-                            effect.table.name, effect.topicName,
-                            effect.table.table.getIntegerArrayTopic(effect.topicName).subscribe(effect.defaultValue.toLongArray()),
+                            effect.table.name,
+                            effect.topicName,
+                            effect.table.table.getIntegerArrayTopic(
+                                effect.topicName,
+                            ).subscribe(effect.defaultValue.toLongArray()),
                         )
                     }, effect.message)
                 }
 
                 is Effect.InitNetworkTableSubscriber.BooleanArray -> {
-                    val exists = model.networkTableSubscriberTokens
-                        .filterIsInstance<NetworkTableSubscriberToken.BooleanArraySubscriberToken>()
-                        .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
+                    val exists =
+                        model.networkTableSubscriberTokens
+                            .filterIsInstance<NetworkTableSubscriberToken.BooleanArraySubscriberToken>()
+                            .any { it.tableName == effect.table.name && it.topicName == effect.topicName }
                     initSubscriber(exists, {
                         NetworkTableSubscriberToken.BooleanArraySubscriberToken(
-                            effect.table.name, effect.topicName,
-                            effect.table.table.getBooleanArrayTopic(effect.topicName).subscribe(effect.defaultValue.toBooleanArray()),
+                            effect.table.name,
+                            effect.topicName,
+                            effect.table.table.getBooleanArrayTopic(
+                                effect.topicName,
+                            ).subscribe(effect.defaultValue.toBooleanArray()),
                         )
                     }, effect.message)
                 }

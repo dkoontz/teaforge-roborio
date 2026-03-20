@@ -18,7 +18,6 @@ import org.zeromq.ZMQ
 import teaforge.platform.RoboRio.CanDeviceSnapshot
 import teaforge.platform.RoboRio.DioPortState
 import teaforge.platform.RoboRio.HidValue
-import teaforge.platform.RoboRio.NetworkTableSubscriberToken
 import teaforge.platform.RoboRio.RunningRobotState
 import teaforge.platform.RoboRio.SignalValue
 import teaforge.platform.RoboRio.Subscription
