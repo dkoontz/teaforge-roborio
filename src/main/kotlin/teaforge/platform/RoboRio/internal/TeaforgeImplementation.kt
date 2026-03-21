@@ -1,9 +1,5 @@
 package teaforge.platform.RoboRio.internal
 
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
-import io.ktor.server.application.*
-import io.ktor.server.websocket.*
 import com.ctre.phoenix6.CANBus
 import com.ctre.phoenix6.Orchestra
 import com.ctre.phoenix6.StatusCode
@@ -24,15 +20,16 @@ import edu.wpi.first.wpilibj.DigitalOutput
 import edu.wpi.first.wpilibj.Servo
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.url
+import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
 import io.ktor.server.routing.routing
+import io.ktor.server.websocket.DefaultWebSocketServerSession
+import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.Frame
 import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import org.zeromq.SocketType
 import org.zeromq.ZContext
@@ -78,6 +75,8 @@ import java.nio.file.Paths
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.CopyOnWriteArraySet
+import io.ktor.client.plugins.websocket.WebSockets as ClientWebSockets
+import io.ktor.server.websocket.WebSockets as ServerWebSockets
 
 val CANBUS_INIT_TIMEOUT_SECONDS = 1.0
 
@@ -103,7 +102,7 @@ private fun createLoggerStatus(debugLogging: DebugLogging): LoggerStatus =
 
             val sessions = CopyOnWriteArraySet<DefaultWebSocketServerSession>()
             embeddedServer(Netty, port = 8080) {
-                install(io.ktor.server.websocket.WebSockets)
+                install(ServerWebSockets)
 
                 routing {
                     webSocket("/") {
@@ -364,7 +363,7 @@ fun <TMessage, TModel> processEffect(
                 completion = {
                     val result: Result<WebSocketToken, Error> =
                         try {
-                            val client = HttpClient(CIO) { install(WebSockets) }
+                            val client = HttpClient(CIO) { install(ClientWebSockets) }
                             val session = client.webSocketSession { url(effect.url) }
 
                             Result.Success(WebSocketToken(effect.url, client, session))
