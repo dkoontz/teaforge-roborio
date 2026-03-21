@@ -1,5 +1,9 @@
 package teaforge.platform.RoboRio.internal
 
+import io.ktor.server.engine.*
+import io.ktor.server.netty.*
+import io.ktor.server.application.*
+import io.ktor.server.websocket.*
 import com.ctre.phoenix6.CANBus
 import com.ctre.phoenix6.Orchestra
 import com.ctre.phoenix6.StatusCode
@@ -23,6 +27,13 @@ import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.url
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.routing.routing
+import io.ktor.websocket.Frame
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import org.zeromq.SocketType
 import org.zeromq.ZContext
 import teaforge.DebugLoggingConfig
@@ -66,6 +77,7 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.CopyOnWriteArraySet
 
 val CANBUS_INIT_TIMEOUT_SECONDS = 1.0
 
@@ -89,6 +101,22 @@ private fun createLoggerStatus(debugLogging: DebugLogging): LoggerStatus =
                 }
             val fileWriter = FileWriter(File(filename), true)
 
+            val sessions = CopyOnWriteArraySet<DefaultWebSocketServerSession>()
+            embeddedServer(Netty, port = 8080) {
+                install(io.ktor.server.websocket.WebSockets)
+
+                routing {
+                    webSocket("/") {
+                        sessions.add(this)
+                        try {
+                            awaitCancellation()
+                        } finally {
+                            sessions.remove(this)
+                        }
+                    }
+                }
+            }.start(wait = false)
+
             LoggerStatus.Enabled(
                 DebugLoggingConfig(
                     getTimestamp = { HALUtil.getFPGATime() },
@@ -96,6 +124,16 @@ private fun createLoggerStatus(debugLogging: DebugLogging): LoggerStatus =
                         fileWriter.write(json)
                         fileWriter.write("\n")
                         fileWriter.flush()
+
+                        coroutineScope.launch {
+                            sessions.forEach { session ->
+                                try {
+                                    session.send(Frame.Text(json))
+                                } catch (_: Exception) {
+                                    sessions.remove(session)
+                                }
+                            }
+                        }
                     },
                     compressionEnabled = debugLogging.compression,
                 ),
