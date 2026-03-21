@@ -11,8 +11,8 @@ import teaforge.platform.RoboRio.PwmPort
 import teaforge.platform.RoboRio.RunningRobotState
 import teaforge.platform.RoboRio.SignalValue
 
-internal fun digitalIoPortToInt(port: DioPort): Int {
-    return when (port) {
+internal fun digitalIoPortToInt(port: DioPort): Int =
+    when (port) {
         DioPort.Zero -> 0
         DioPort.One -> 1
         DioPort.Two -> 2
@@ -24,19 +24,17 @@ internal fun digitalIoPortToInt(port: DioPort): Int {
         DioPort.Eight -> 8
         DioPort.Nine -> 9
     }
-}
 
-internal fun analogPortToInt(port: AnalogPort): Int {
-    return when (port) {
+internal fun analogPortToInt(port: AnalogPort): Int =
+    when (port) {
         AnalogPort.Zero -> 0
         AnalogPort.One -> 1
         AnalogPort.Two -> 2
         AnalogPort.Three -> 3
     }
-}
 
-internal fun pwmPortToInt(port: PwmPort): Int {
-    return when (port) {
+internal fun pwmPortToInt(port: PwmPort): Int =
+    when (port) {
         PwmPort.Zero -> 0
         PwmPort.One -> 1
         PwmPort.Two -> 2
@@ -48,7 +46,6 @@ internal fun pwmPortToInt(port: PwmPort): Int {
         PwmPort.Eight -> 8
         PwmPort.Nine -> 9
     }
-}
 
 internal fun log(msg: String) {
     val elapsedMicroseconds = HALUtil.getFPGATime()
