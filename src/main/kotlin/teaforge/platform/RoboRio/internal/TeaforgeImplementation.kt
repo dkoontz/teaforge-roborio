@@ -110,10 +110,8 @@ private fun createLoggerStatus(debugLogging: DebugLogging): LoggerStatus =
                 install(ServerWebSockets)
                 routing {
                     webSocket("/") {
-
                         // Upon connecting, we will asynchronously send all previously logged json to the client
                         coroutineScope.launch {
-
                             // Read the file 1 line at a time (due to the file being very large) and send
                             val reader = withContext(Dispatchers.IO) { File(filename).bufferedReader() }
                             try {
