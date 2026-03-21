@@ -263,23 +263,23 @@ fun <TMessage, TModel> processEffect(
         }
 
         is Effect.InitCanBus -> {
-            val alreadyInitialized = model.canBusTokens.any { it.bus == effect.bus }
+            val alreadyInitialized = model.canBusTokens.any { it.bus.name == effect.name }
             if (alreadyInitialized) {
                 val result = Result.Error<CanBusToken, Error>(Error.AlreadyInitialized)
                 return EffectResult.Sync(model, Maybe.Some(effect.message(result)))
             }
-
-            val status = effect.bus.status
+            val bus = CANBus(effect.name)
+            val status = bus.status
             if (!status.Status.isOK) {
                 val result =
                     Result.Error<CanBusToken, Error>(
-                        Error.CanBusInitError("Status error initializing ${effect.bus.name} can bus: status: $status"),
+                        Error.CanBusInitError("Status error initializing ${effect.name} can bus: status: $status"),
                     )
                 return EffectResult.Sync(model, Maybe.Some(effect.message(result)))
             }
 
             try {
-                val token = CanBusToken(effect.bus)
+                val token = CanBusToken(bus)
                 val newModel = model.copy(canBusTokens = model.canBusTokens + token)
                 val result = Result.Success<CanBusToken, Error>(token)
                 EffectResult.Sync(newModel, Maybe.Some(effect.message(result)))

@@ -59,7 +59,7 @@ sealed interface Effect<out TMessage> {
     ) : Effect<Nothing>
 
     data class InitCanBus<TMessage>(
-        val bus: CANBus,
+        val name: String,
         val message: (Result<CanBusToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
@@ -383,7 +383,7 @@ fun <TMessage, TNewMessage> mapEffect(
 
         is Effect.InitCanBus -> {
             Effect.InitCanBus(
-                bus = effect.bus,
+                name = effect.name,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         }
