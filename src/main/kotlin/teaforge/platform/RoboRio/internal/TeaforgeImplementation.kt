@@ -9,6 +9,7 @@ import com.ctre.phoenix6.hardware.CANrange
 import com.ctre.phoenix6.hardware.Pigeon2
 import com.ctre.phoenix6.hardware.TalonFX
 import com.revrobotics.REVLibError
+import com.revrobotics.jni.CANSparkJNI
 import com.revrobotics.spark.SparkLowLevel
 import com.revrobotics.spark.SparkMax
 import edu.wpi.first.hal.HALUtil
@@ -262,31 +263,30 @@ fun <TMessage, TModel> processEffect(
         }
 
         is Effect.InitCanBus -> {
-            val alreadyInitialized = model.canBusTokens.any { it.name == effect.name }
+            val alreadyInitialized = model.canBusTokens.any { it.bus == effect.bus }
             if (alreadyInitialized) {
                 val result = Result.Error<CanBusToken, Error>(Error.AlreadyInitialized)
                 return EffectResult.Sync(model, Maybe.Some(effect.message(result)))
             }
 
-            val bus = CANBus(effect.name)
-            val status = bus.status
+            val status = effect.bus.status
             if (!status.Status.isOK) {
                 val result =
                     Result.Error<CanBusToken, Error>(
-                        Error.CanBusInitError("Status error initializing ${effect.name} can bus: status: $status"),
+                        Error.CanBusInitError("Status error initializing ${effect.bus.name} can bus: status: $status"),
                     )
                 return EffectResult.Sync(model, Maybe.Some(effect.message(result)))
             }
 
             try {
-                val token = CanBusToken(effect.name)
+                val token = CanBusToken(effect.bus)
                 val newModel = model.copy(canBusTokens = model.canBusTokens + token)
                 val result = Result.Success<CanBusToken, Error>(token)
                 EffectResult.Sync(newModel, Maybe.Some(effect.message(result)))
             } catch (e: Exception) {
                 val result =
                     Result.Error<CanBusToken, Error>(
-                        Error.PortInitializationError(e.message ?: "Unknown error initializing can bus"),
+                        Error.CanBusInitError(e.message ?: "Unknown error initializing can bus"),
                     )
                 EffectResult.Sync(model, Maybe.Some(effect.message(result)))
             }
@@ -636,6 +636,11 @@ fun <TMessage, TModel> processEffect(
 
             when (effect) {
                 is Effect.InitCanDevice.InitMotor.Neo -> {
+                    if (effect.canToken.bus.name != "rio") {
+                        val error = Error.CanBusError("Neos must be initialized on the rio can bus")
+                        val result = Result.Error<CanDeviceToken, Error>(error)
+                        return EffectResult.Sync(model, Maybe.Some(effect.message(effect.id, result)))
+                    }
                     val motor = SparkMax(effect.id, SparkLowLevel.MotorType.kBrushless)
                     val connected = motor.lastError == REVLibError.kOk && !motor.firmwareString.isNullOrEmpty()
                     if (connected) {
@@ -654,7 +659,8 @@ fun <TMessage, TModel> processEffect(
                 }
 
                 is Effect.InitCanDevice.InitMotor.Talon -> {
-                    val motor = TalonFX(effect.id)
+                    val bus = effect.canToken.bus
+                    val motor = TalonFX(effect.id, bus)
                     val status = motor.deviceTemp.waitForUpdate(CANBUS_INIT_TIMEOUT_SECONDS).status
                     if (status.isOK) {
                         success(
@@ -672,7 +678,8 @@ fun <TMessage, TModel> processEffect(
                 }
 
                 is Effect.InitCanDevice.Encoder -> {
-                    val encoder = CANcoder(effect.id)
+                    val bus = effect.canToken.bus
+                    val encoder = CANcoder(effect.id, bus)
                     val status = encoder.supplyVoltage.status
                     if (status.isOK) {
                         success(
@@ -690,7 +697,8 @@ fun <TMessage, TModel> processEffect(
                 }
 
                 is Effect.InitCanDevice.Pigeon -> {
-                    val pigeon = Pigeon2(effect.id)
+                    val bus = effect.canToken.bus
+                    val pigeon = Pigeon2(effect.id, bus)
                     val status = pigeon.supplyVoltage.status
                     if (status.isOK) {
                         success(
@@ -708,7 +716,8 @@ fun <TMessage, TModel> processEffect(
                 }
 
                 is Effect.InitCanDevice.Range -> {
-                    val range = CANrange(effect.id)
+                    val bus = effect.canToken.bus
+                    val range = CANrange(effect.id, bus)
                     val status = range.supplyVoltage.status
                     if (status.isOK) {
                         success(

@@ -1,5 +1,6 @@
 package teaforge.platform.RoboRio
 
+import com.ctre.phoenix6.CANBus
 import com.ctre.phoenix6.StatusCode
 import com.ctre.phoenix6.Timestamp
 import com.ctre.phoenix6.hardware.CANcoder
@@ -10,7 +11,6 @@ import com.revrobotics.REVLibError
 import com.revrobotics.spark.SparkMax
 import edu.wpi.first.wpilibj.AnalogInput
 import edu.wpi.first.wpilibj.AnalogOutput
-import edu.wpi.first.wpilibj.CAN
 import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.DigitalOutput
 import edu.wpi.first.wpilibj.Servo
@@ -100,6 +100,10 @@ sealed interface Error {
     data class CanBusInitError(
         val details: String,
     ) : Error
+
+    data class CanBusError(
+        val details: String,
+    ) : Error
 }
 
 enum class DioPort {
@@ -136,7 +140,7 @@ enum class PwmPort {
 }
 
 data class CanBusToken internal constructor(
-    val name: String,
+    val bus: CANBus,
 )
 
 data class DigitalOutputToken internal constructor(

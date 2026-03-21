@@ -1,5 +1,6 @@
 package teaforge.platform.RoboRio
 
+import com.ctre.phoenix6.CANBus
 import com.ctre.phoenix6.configs.CANcoderConfiguration
 import com.ctre.phoenix6.configs.Pigeon2Configuration
 import com.ctre.phoenix6.configs.TalonFXConfiguration
@@ -58,7 +59,7 @@ sealed interface Effect<out TMessage> {
     ) : Effect<Nothing>
 
     data class InitCanBus<TMessage>(
-        val name: String,
+        val bus: CANBus,
         val message: (Result<CanBusToken, Error>) -> TMessage,
     ) : Effect<TMessage>
 
@@ -382,7 +383,7 @@ fun <TMessage, TNewMessage> mapEffect(
 
         is Effect.InitCanBus -> {
             Effect.InitCanBus(
-                name = effect.name,
+                bus = effect.bus,
                 message = { result -> mapFunction(effect.message(result)) },
             )
         }
