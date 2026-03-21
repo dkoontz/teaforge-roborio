@@ -19,8 +19,10 @@ repositories {
 
 dependencies {
     implementation(kotlin("stdlib"))
+    implementation(kotlin("reflect"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
-    api(files("libs/teaforge-0.1.8.jar"))
+    api(files("libs/teaforge-0.1.9.jar"))
 
     implementation("edu.wpi.first.wpinet:wpinet-java:2026.1.1")
     implementation("edu.wpi.first.wpilibj:wpilibj-java:2026.1.1")
@@ -41,6 +43,7 @@ dependencies {
     implementation("io.ktor:ktor-server-core:2.3.7")
     implementation("io.ktor:ktor-server-netty:2.3.7")
     implementation("io.ktor:ktor-server-websockets:2.3.7")
+    implementation("ch.qos.logback:logback-classic:1.4.14")
 
     implementation("org.zeromq:jeromq:0.6.0")
 

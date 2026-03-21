@@ -29,8 +29,10 @@ import io.ktor.server.routing.routing
 import io.ktor.server.websocket.DefaultWebSocketServerSession
 import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.Frame
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.zeromq.SocketType
 import org.zeromq.ZContext
 import teaforge.DebugLoggingConfig
@@ -100,13 +102,38 @@ private fun createLoggerStatus(debugLogging: DebugLogging): LoggerStatus =
                 }
             val fileWriter = FileWriter(File(filename), true)
 
+            // List of connected debugger clients
             val sessions = CopyOnWriteArraySet<DefaultWebSocketServerSession>()
+
+            // Init web socket server
             embeddedServer(Netty, port = 8080) {
                 install(ServerWebSockets)
-
                 routing {
                     webSocket("/") {
-                        sessions.add(this)
+
+                        // Upon connecting, we will asynchronously send all previously logged json to the client
+                        coroutineScope.launch {
+
+                            // Read the file 1 line at a time (due to the file being very large) and send
+                            val reader = withContext(Dispatchers.IO) { File(filename).bufferedReader() }
+                            try {
+                                var line = withContext(Dispatchers.IO) { reader.readLine() }
+                                while (line != null) {
+                                    send(Frame.Text(line))
+                                    line = withContext(Dispatchers.IO) { reader.readLine() }
+                                }
+
+                                /*
+                                 * After sending all data from the file, we register the client so we can
+                                 * send new json over websockets when it arrives
+                                 */
+                                sessions.add(this@webSocket)
+                            } finally {
+                                withContext(Dispatchers.IO) { reader.close() }
+                            }
+                        }
+
+                        // Un-register the client when they disconnect
                         try {
                             awaitCancellation()
                         } finally {
@@ -120,10 +147,16 @@ private fun createLoggerStatus(debugLogging: DebugLogging): LoggerStatus =
                 DebugLoggingConfig(
                     getTimestamp = { HALUtil.getFPGATime() },
                     log = { json ->
+
+                        // Write newly arrived json to file
                         fileWriter.write(json)
                         fileWriter.write("\n")
                         fileWriter.flush()
 
+                        /*
+                         * Send newly arrived json to all clients.
+                         * This will not send to clients that haven't finished receiving all data from the file.
+                         */
                         coroutineScope.launch {
                             sessions.forEach { session ->
                                 try {
