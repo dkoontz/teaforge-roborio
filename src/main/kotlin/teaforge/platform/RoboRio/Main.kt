@@ -1,6 +1,5 @@
 package teaforge.platform.RoboRio
 
-import com.ctre.phoenix6.CANBus
 import com.ctre.phoenix6.configs.CANcoderConfiguration
 import com.ctre.phoenix6.configs.Pigeon2Configuration
 import com.ctre.phoenix6.configs.TalonFXConfiguration

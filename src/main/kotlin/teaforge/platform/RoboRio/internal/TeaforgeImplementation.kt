@@ -9,7 +9,6 @@ import com.ctre.phoenix6.hardware.CANrange
 import com.ctre.phoenix6.hardware.Pigeon2
 import com.ctre.phoenix6.hardware.TalonFX
 import com.revrobotics.REVLibError
-import com.revrobotics.jni.CANSparkJNI
 import com.revrobotics.spark.SparkLowLevel
 import com.revrobotics.spark.SparkMax
 import edu.wpi.first.hal.HALUtil
@@ -128,7 +127,7 @@ fun <TMessage, TModel> createRoboRioRunner(
     RoboRioModel<TMessage, TModel>,
     Subscription<TMessage>,
     SubscriptionState<TMessage>,
-> {
+    > {
     val loggerStatus = createLoggerStatus(debugLogging)
 
     val runnerConfig:
@@ -139,7 +138,7 @@ fun <TMessage, TModel> createRoboRioRunner(
             RoboRioModel<TMessage, TModel>,
             Subscription<TMessage>,
             SubscriptionState<TMessage>,
-        > =
+            > =
         ProgramRunnerConfig(
             initRunner = ::initRoboRioRunner,
             processEffect = ::processEffect,
