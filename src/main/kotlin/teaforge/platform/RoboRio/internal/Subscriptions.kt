@@ -105,6 +105,10 @@ sealed interface SubscriptionState<TMessage> {
     data class TCPValue<TMessage>(
         val config: Subscription.TCPValue<TMessage>,
     ) : SubscriptionState<TMessage>
+
+    data class NetworkTableValue<TMessage>(
+        val config: Subscription.NetworkTableValue<TMessage>,
+    ) : SubscriptionState<TMessage>
 }
 
 fun <TMessage, TModel> createDigitalPortValueState(
@@ -403,6 +407,7 @@ fun <TMessage, TModel> processSubscription(
         is SubscriptionState.TalonValue -> runReadTalonValue(model, subscriptionState)
         is SubscriptionState.SerialValue -> runReadSerialValue(model, subscriptionState)
         is SubscriptionState.TCPValue -> runReadTCPValue(model, subscriptionState)
+        is SubscriptionState.NetworkTableValue -> runReadNetworkTableValue(model, subscriptionState)
     }
 
 fun <TMessage, TModel> startSubscriptionHandler(
@@ -426,6 +431,7 @@ fun <TMessage, TModel> startSubscriptionHandler(
         is Subscription.TalonValue -> createTalonValueState(model, subscription)
         is Subscription.SerialValue -> createSerialState(model, subscription)
         is Subscription.TCPValue -> createTCPValueState(model, subscription)
+        is Subscription.NetworkTableValue -> createNetworkTableValueState(model, subscription)
     }
 
 fun <TMessage, TModel> stopSubscriptionHandler(
@@ -449,6 +455,7 @@ fun <TMessage, TModel> stopSubscriptionHandler(
         is SubscriptionState.WebSocket -> closeWebSocket(model, subscriptionState)
         is SubscriptionState.SerialValue -> closeSerial(model, subscriptionState)
         is SubscriptionState.TCPValue -> closeTCP(model, subscriptionState)
+        is SubscriptionState.NetworkTableValue -> closeNetworkTableSubscriber(model, subscriptionState)
     }
 
 fun <TMessage, TModel> runReadSerialValue(
@@ -932,6 +939,71 @@ fun <TMessage, TModel> closeTCP(
             token.socket.close()
             token.context.close()
         }
+    }
+    return model
+}
+
+fun <TMessage, TModel> createNetworkTableValueState(
+    model: RoboRioModel<TMessage, TModel>,
+    config: Subscription.NetworkTableValue<TMessage>,
+): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> =
+    Pair(model, SubscriptionState.NetworkTableValue(config))
+
+fun <TMessage, TModel> runReadNetworkTableValue(
+    model: RoboRioModel<TMessage, TModel>,
+    state: SubscriptionState.NetworkTableValue<TMessage>,
+): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
+    val message: Maybe<TMessage> =
+        when (val config = state.config) {
+            is Subscription.NetworkTableValue.Double -> {
+                val queue = config.token.subscriber.readQueue()
+                if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value)) else Maybe.None
+            }
+            is Subscription.NetworkTableValue.String -> {
+                val queue = config.token.subscriber.readQueue()
+                if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value)) else Maybe.None
+            }
+            is Subscription.NetworkTableValue.Integer -> {
+                val queue = config.token.subscriber.readQueue()
+                if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value)) else Maybe.None
+            }
+            is Subscription.NetworkTableValue.Boolean -> {
+                val queue = config.token.subscriber.readQueue()
+                if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value)) else Maybe.None
+            }
+            is Subscription.NetworkTableValue.DoubleArray -> {
+                val queue = config.token.subscriber.readQueue()
+                if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value.toList())) else Maybe.None
+            }
+            is Subscription.NetworkTableValue.StringArray -> {
+                val queue = config.token.subscriber.readQueue()
+                if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value.toList())) else Maybe.None
+            }
+            is Subscription.NetworkTableValue.IntegerArray -> {
+                val queue = config.token.subscriber.readQueue()
+                if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value.toList())) else Maybe.None
+            }
+            is Subscription.NetworkTableValue.BooleanArray -> {
+                val queue = config.token.subscriber.readQueue()
+                if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value.toList())) else Maybe.None
+            }
+        }
+    return Triple(model, state, message)
+}
+
+fun <TMessage, TModel> closeNetworkTableSubscriber(
+    model: RoboRioModel<TMessage, TModel>,
+    state: SubscriptionState.NetworkTableValue<TMessage>,
+): RoboRioModel<TMessage, TModel> {
+    when (val config = state.config) {
+        is Subscription.NetworkTableValue.Double -> config.token.subscriber.close()
+        is Subscription.NetworkTableValue.String -> config.token.subscriber.close()
+        is Subscription.NetworkTableValue.Integer -> config.token.subscriber.close()
+        is Subscription.NetworkTableValue.Boolean -> config.token.subscriber.close()
+        is Subscription.NetworkTableValue.DoubleArray -> config.token.subscriber.close()
+        is Subscription.NetworkTableValue.StringArray -> config.token.subscriber.close()
+        is Subscription.NetworkTableValue.IntegerArray -> config.token.subscriber.close()
+        is Subscription.NetworkTableValue.BooleanArray -> config.token.subscriber.close()
     }
     return model
 }

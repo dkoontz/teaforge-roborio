@@ -23,6 +23,7 @@ dependencies {
     api(files("libs/teaforge-0.1.8.jar"))
 
     implementation("edu.wpi.first.wpinet:wpinet-java:2026.1.1")
+    implementation("edu.wpi.first.ntcore:ntcore-java:2026.1.1")
     implementation("edu.wpi.first.wpilibj:wpilibj-java:2026.1.1")
     implementation("edu.wpi.first.wpiutil:wpiutil-java:2026.1.1")
     implementation("edu.wpi.first.hal:hal-java:2026.1.1")
