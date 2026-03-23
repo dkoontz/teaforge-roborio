@@ -1,12 +1,14 @@
 package teaforge.platform.RoboRio.internal
 
 import com.ctre.phoenix6.StatusSignal
+import com.ctre.phoenix6.configs.TalonFXConfiguration
 import edu.wpi.first.hal.HALUtil
 import edu.wpi.first.wpilibj.DigitalInput
 import edu.wpi.first.wpilibj.RobotState
 import teaforge.platform.RoboRio.AnalogPort
 import teaforge.platform.RoboRio.DioPort
 import teaforge.platform.RoboRio.DioPortState
+import teaforge.platform.RoboRio.MotorConfig
 import teaforge.platform.RoboRio.PwmPort
 import teaforge.platform.RoboRio.RunningRobotState
 import teaforge.platform.RoboRio.SignalValue
@@ -97,3 +99,13 @@ fun <T> statusSignalToSignalValue(statusSignal: StatusSignal<T>): SignalValue<Do
         timestamp = statusSignal.timestamp,
         status = statusSignal.status,
     )
+
+fun createMotorConfig(config: MotorConfig): TalonFXConfiguration =
+    TalonFXConfiguration().apply {
+        CurrentLimits.SupplyCurrentLimit = config.currentLimit
+        CurrentLimits.SupplyCurrentLowerLimit = config.lowerLimit
+        CurrentLimits.SupplyCurrentLowerTime = config.lowerLimitTime
+        CurrentLimits.SupplyCurrentLimitEnable = true
+
+        OpenLoopRamps.DutyCycleOpenLoopRampPeriod = config.ramp
+    }

@@ -671,6 +671,8 @@ fun <TMessage, TModel> processEffect(
                 is Effect.InitCanDevice.InitMotor.Talon -> {
                     val bus = effect.canToken.bus
                     val motor = TalonFX(effect.id, bus)
+                    val config = createMotorConfig(effect.configuration)
+                    motor.configurator.apply(config)
                     val status = motor.deviceTemp.waitForUpdate(CANBUS_INIT_TIMEOUT_SECONDS).status
                     if (status.isOK) {
                         success(
@@ -944,7 +946,9 @@ fun <TMessage, TModel> processEffect(
                         NetworkTablePublisherToken.DoublePublisherToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getDoubleTopic(effect.topicName).publish(),
+                            effect.table.table
+                                .getDoubleTopic(effect.topicName)
+                                .publish(),
                         )
                     }, effect.message)
                 }
@@ -958,7 +962,9 @@ fun <TMessage, TModel> processEffect(
                         NetworkTablePublisherToken.StringPublisherToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getStringTopic(effect.topicName).publish(),
+                            effect.table.table
+                                .getStringTopic(effect.topicName)
+                                .publish(),
                         )
                     }, effect.message)
                 }
@@ -972,7 +978,9 @@ fun <TMessage, TModel> processEffect(
                         NetworkTablePublisherToken.IntegerPublisherToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getIntegerTopic(effect.topicName).publish(),
+                            effect.table.table
+                                .getIntegerTopic(effect.topicName)
+                                .publish(),
                         )
                     }, effect.message)
                 }
@@ -986,7 +994,9 @@ fun <TMessage, TModel> processEffect(
                         NetworkTablePublisherToken.BooleanPublisherToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getBooleanTopic(effect.topicName).publish(),
+                            effect.table.table
+                                .getBooleanTopic(effect.topicName)
+                                .publish(),
                         )
                     }, effect.message)
                 }
@@ -1000,7 +1010,9 @@ fun <TMessage, TModel> processEffect(
                         NetworkTablePublisherToken.DoubleArrayPublisherToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getDoubleArrayTopic(effect.topicName).publish(),
+                            effect.table.table
+                                .getDoubleArrayTopic(effect.topicName)
+                                .publish(),
                         )
                     }, effect.message)
                 }
@@ -1014,7 +1026,9 @@ fun <TMessage, TModel> processEffect(
                         NetworkTablePublisherToken.StringArrayPublisherToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getStringArrayTopic(effect.topicName).publish(),
+                            effect.table.table
+                                .getStringArrayTopic(effect.topicName)
+                                .publish(),
                         )
                     }, effect.message)
                 }
@@ -1028,7 +1042,9 @@ fun <TMessage, TModel> processEffect(
                         NetworkTablePublisherToken.IntegerArrayPublisherToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getIntegerArrayTopic(effect.topicName).publish(),
+                            effect.table.table
+                                .getIntegerArrayTopic(effect.topicName)
+                                .publish(),
                         )
                     }, effect.message)
                 }
@@ -1042,7 +1058,9 @@ fun <TMessage, TModel> processEffect(
                         NetworkTablePublisherToken.BooleanArrayPublisherToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getBooleanArrayTopic(effect.topicName).publish(),
+                            effect.table.table
+                                .getBooleanArrayTopic(effect.topicName)
+                                .publish(),
                         )
                     }, effect.message)
                 }
@@ -1124,7 +1142,9 @@ fun <TMessage, TModel> processEffect(
                         NetworkTableSubscriberToken.DoubleSubscriberToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getDoubleTopic(effect.topicName).subscribe(effect.defaultValue),
+                            effect.table.table
+                                .getDoubleTopic(effect.topicName)
+                                .subscribe(effect.defaultValue),
                         )
                     }, effect.message)
                 }
@@ -1138,7 +1158,9 @@ fun <TMessage, TModel> processEffect(
                         NetworkTableSubscriberToken.StringSubscriberToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getStringTopic(effect.topicName).subscribe(effect.defaultValue),
+                            effect.table.table
+                                .getStringTopic(effect.topicName)
+                                .subscribe(effect.defaultValue),
                         )
                     }, effect.message)
                 }
@@ -1152,7 +1174,9 @@ fun <TMessage, TModel> processEffect(
                         NetworkTableSubscriberToken.IntegerSubscriberToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getIntegerTopic(effect.topicName).subscribe(effect.defaultValue),
+                            effect.table.table
+                                .getIntegerTopic(effect.topicName)
+                                .subscribe(effect.defaultValue),
                         )
                     }, effect.message)
                 }
@@ -1166,7 +1190,9 @@ fun <TMessage, TModel> processEffect(
                         NetworkTableSubscriberToken.BooleanSubscriberToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getBooleanTopic(effect.topicName).subscribe(effect.defaultValue),
+                            effect.table.table
+                                .getBooleanTopic(effect.topicName)
+                                .subscribe(effect.defaultValue),
                         )
                     }, effect.message)
                 }
@@ -1180,9 +1206,10 @@ fun <TMessage, TModel> processEffect(
                         NetworkTableSubscriberToken.DoubleArraySubscriberToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getDoubleArrayTopic(
-                                effect.topicName,
-                            ).subscribe(effect.defaultValue.toDoubleArray()),
+                            effect.table.table
+                                .getDoubleArrayTopic(
+                                    effect.topicName,
+                                ).subscribe(effect.defaultValue.toDoubleArray()),
                         )
                     }, effect.message)
                 }
@@ -1196,9 +1223,10 @@ fun <TMessage, TModel> processEffect(
                         NetworkTableSubscriberToken.StringArraySubscriberToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getStringArrayTopic(
-                                effect.topicName,
-                            ).subscribe(effect.defaultValue.toTypedArray()),
+                            effect.table.table
+                                .getStringArrayTopic(
+                                    effect.topicName,
+                                ).subscribe(effect.defaultValue.toTypedArray()),
                         )
                     }, effect.message)
                 }
@@ -1212,9 +1240,10 @@ fun <TMessage, TModel> processEffect(
                         NetworkTableSubscriberToken.IntegerArraySubscriberToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getIntegerArrayTopic(
-                                effect.topicName,
-                            ).subscribe(effect.defaultValue.toLongArray()),
+                            effect.table.table
+                                .getIntegerArrayTopic(
+                                    effect.topicName,
+                                ).subscribe(effect.defaultValue.toLongArray()),
                         )
                     }, effect.message)
                 }
@@ -1228,9 +1257,10 @@ fun <TMessage, TModel> processEffect(
                         NetworkTableSubscriberToken.BooleanArraySubscriberToken(
                             effect.table.name,
                             effect.topicName,
-                            effect.table.table.getBooleanArrayTopic(
-                                effect.topicName,
-                            ).subscribe(effect.defaultValue.toBooleanArray()),
+                            effect.table.table
+                                .getBooleanArrayTopic(
+                                    effect.topicName,
+                                ).subscribe(effect.defaultValue.toBooleanArray()),
                         )
                     }, effect.message)
                 }

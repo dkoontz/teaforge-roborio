@@ -139,6 +139,7 @@ sealed interface Effect<out TMessage> {
             data class Talon<TMessage>(
                 val id: Int,
                 val canToken: CanBusToken,
+                val configuration: MotorConfig,
                 val message: (Int, Result<CanDeviceToken, Error>) -> TMessage,
             ) : InitMotor<TMessage>
         }
@@ -667,6 +668,7 @@ fun <TMessage, TNewMessage> mapEffect(
             Effect.InitCanDevice.InitMotor.Talon(
                 id = effect.id,
                 canToken = effect.canToken,
+                configuration = effect.configuration,
                 message = { deviceId, result -> mapFunction(effect.message(deviceId, result)) },
             )
         }
@@ -875,14 +877,37 @@ fun <TMessage, TNewMessage> mapEffect(
             )
         }
 
-        is Effect.PublishToNetworkTable.Double -> effect
-        is Effect.PublishToNetworkTable.String -> effect
-        is Effect.PublishToNetworkTable.Integer -> effect
-        is Effect.PublishToNetworkTable.Boolean -> effect
-        is Effect.PublishToNetworkTable.DoubleArray -> effect
-        is Effect.PublishToNetworkTable.StringArray -> effect
-        is Effect.PublishToNetworkTable.IntegerArray -> effect
-        is Effect.PublishToNetworkTable.BooleanArray -> effect
+        is Effect.PublishToNetworkTable.Double -> {
+            effect
+        }
+
+        is Effect.PublishToNetworkTable.String -> {
+            effect
+        }
+
+        is Effect.PublishToNetworkTable.Integer -> {
+            effect
+        }
+
+        is Effect.PublishToNetworkTable.Boolean -> {
+            effect
+        }
+
+        is Effect.PublishToNetworkTable.DoubleArray -> {
+            effect
+        }
+
+        is Effect.PublishToNetworkTable.StringArray -> {
+            effect
+        }
+
+        is Effect.PublishToNetworkTable.IntegerArray -> {
+            effect
+        }
+
+        is Effect.PublishToNetworkTable.BooleanArray -> {
+            effect
+        }
 
         is Effect.InitNetworkTableSubscriber.Double -> {
             Effect.InitNetworkTableSubscriber.Double(

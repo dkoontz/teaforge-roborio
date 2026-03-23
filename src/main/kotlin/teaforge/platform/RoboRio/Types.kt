@@ -410,3 +410,14 @@ sealed interface CanDeviceSnapshot {
         val roll: SignalValue<Double>,
     ) : CanDeviceSnapshot
 }
+
+data class MotorConfig(
+    // Current motor is allowed to continuously draw
+    val currentLimit: Double,
+    // How high current is allowed to spike
+    val lowerLimit: Double,
+    // How long motor is allowed to exceed lower limit
+    val lowerLimitTime: Double,
+    // Acceleration limit
+    val ramp: Double,
+)
