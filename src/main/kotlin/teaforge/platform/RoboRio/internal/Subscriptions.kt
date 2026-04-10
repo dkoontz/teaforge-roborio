@@ -28,7 +28,8 @@ import teaforge.utils.map
 sealed interface SubscriptionState<TMessage> {
     data class Interval<TMessage>(
         val config: Subscription.Interval<TMessage>,
-        val nextReadTimeMicroseconds: Long,
+        val lastReadTimeMicroseconds: Double,
+        val nextReadTimeMicroseconds: Double,
     ) : SubscriptionState<TMessage>
 
     data class WebSocket<TMessage>(
@@ -340,12 +341,13 @@ fun <TMessage, TModel> createInterval(
     model: RoboRioModel<TMessage, TModel>,
     config: Subscription.Interval<TMessage>,
 ): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
-    val currentTime = HALUtil.getFPGATime()
+    val currentTime = HALUtil.getFPGATime().toDouble()
     return Pair(
         model,
         SubscriptionState.Interval(
             config = config,
-            nextReadTimeMicroseconds = (config.millisecondsBetweenReads * 1_000L) + currentTime,
+            nextReadTimeMicroseconds = (config.millisecondsBetweenReads * 1000) + currentTime,
+            lastReadTimeMicroseconds = currentTime - (config.millisecondsBetweenReads * 1000),
         ),
     )
 }
@@ -811,17 +813,21 @@ fun <TMessage, TModel> runReadInterval(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.Interval<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
-    val currentMicroseconds = HALUtil.getFPGATime()
+    val currentMicroseconds = HALUtil.getFPGATime().toDouble()
     return if (currentMicroseconds >= state.nextReadTimeMicroseconds) {
-        val elapsedMicroseconds = currentMicroseconds - state.nextReadTimeMicroseconds
+        val elapsedMicroseconds = currentMicroseconds - state.lastReadTimeMicroseconds
 
-        val intervalMicroseconds = state.config.millisecondsBetweenReads * 1_000L
+        val intervalMicroseconds = state.config.millisecondsBetweenReads * 1000
         val intervalsMissed = elapsedMicroseconds / intervalMicroseconds
 
         val newNextReadTime = state.nextReadTimeMicroseconds + (intervalMicroseconds * (intervalsMissed + 1))
 
-        val updatedState = state.copy(nextReadTimeMicroseconds = newNextReadTime)
-        Triple(model, updatedState, Maybe.Some(state.config.message(elapsedMicroseconds / 1_000L)))
+        val updatedState =
+            state.copy(
+                nextReadTimeMicroseconds = newNextReadTime,
+                lastReadTimeMicroseconds = currentMicroseconds,
+            )
+        Triple(model, updatedState, Maybe.Some(state.config.message(elapsedMicroseconds / 1000.0)))
     } else {
         Triple(model, state, Maybe.None)
     }
@@ -959,30 +965,37 @@ fun <TMessage, TModel> runReadNetworkTableValue(
                 val queue = config.token.subscriber.readQueue()
                 if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value)) else Maybe.None
             }
+
             is Subscription.NetworkTableValue.String -> {
                 val queue = config.token.subscriber.readQueue()
                 if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value)) else Maybe.None
             }
+
             is Subscription.NetworkTableValue.Integer -> {
                 val queue = config.token.subscriber.readQueue()
                 if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value)) else Maybe.None
             }
+
             is Subscription.NetworkTableValue.Boolean -> {
                 val queue = config.token.subscriber.readQueue()
                 if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value)) else Maybe.None
             }
+
             is Subscription.NetworkTableValue.DoubleArray -> {
                 val queue = config.token.subscriber.readQueue()
                 if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value.toList())) else Maybe.None
             }
+
             is Subscription.NetworkTableValue.StringArray -> {
                 val queue = config.token.subscriber.readQueue()
                 if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value.toList())) else Maybe.None
             }
+
             is Subscription.NetworkTableValue.IntegerArray -> {
                 val queue = config.token.subscriber.readQueue()
                 if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value.toList())) else Maybe.None
             }
+
             is Subscription.NetworkTableValue.BooleanArray -> {
                 val queue = config.token.subscriber.readQueue()
                 if (queue.isNotEmpty()) Maybe.Some(config.message(queue.last().value.toList())) else Maybe.None

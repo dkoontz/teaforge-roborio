@@ -386,7 +386,7 @@ sealed interface Subscription<out TMessage> {
     data class Interval<TMessage>(
         val id: SubscriptionIdentifier,
         val millisecondsBetweenReads: Int,
-        val message: (Long) -> TMessage,
+        val message: (Double) -> TMessage,
     ) : Subscription<TMessage>
 
     data class WebSocket<TMessage>(
@@ -875,14 +875,37 @@ fun <TMessage, TNewMessage> mapEffect(
             )
         }
 
-        is Effect.PublishToNetworkTable.Double -> effect
-        is Effect.PublishToNetworkTable.String -> effect
-        is Effect.PublishToNetworkTable.Integer -> effect
-        is Effect.PublishToNetworkTable.Boolean -> effect
-        is Effect.PublishToNetworkTable.DoubleArray -> effect
-        is Effect.PublishToNetworkTable.StringArray -> effect
-        is Effect.PublishToNetworkTable.IntegerArray -> effect
-        is Effect.PublishToNetworkTable.BooleanArray -> effect
+        is Effect.PublishToNetworkTable.Double -> {
+            effect
+        }
+
+        is Effect.PublishToNetworkTable.String -> {
+            effect
+        }
+
+        is Effect.PublishToNetworkTable.Integer -> {
+            effect
+        }
+
+        is Effect.PublishToNetworkTable.Boolean -> {
+            effect
+        }
+
+        is Effect.PublishToNetworkTable.DoubleArray -> {
+            effect
+        }
+
+        is Effect.PublishToNetworkTable.StringArray -> {
+            effect
+        }
+
+        is Effect.PublishToNetworkTable.IntegerArray -> {
+            effect
+        }
+
+        is Effect.PublishToNetworkTable.BooleanArray -> {
+            effect
+        }
 
         is Effect.InitNetworkTableSubscriber.Double -> {
             Effect.InitNetworkTableSubscriber.Double(
