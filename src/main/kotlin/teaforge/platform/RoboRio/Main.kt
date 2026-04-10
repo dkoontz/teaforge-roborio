@@ -1029,7 +1029,6 @@ fun <TMessage, TNewMessage> mapSubscription(
         is Interval -> {
             Interval(
                 id = subscription.id,
-                millisecondsBetweenReads = subscription.millisecondsBetweenReads,
                 message = { elapsed -> mapFunction(subscription.message(elapsed)) },
             )
         }
