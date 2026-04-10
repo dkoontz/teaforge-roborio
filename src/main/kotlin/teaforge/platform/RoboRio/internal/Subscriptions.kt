@@ -29,7 +29,6 @@ sealed interface SubscriptionState<TMessage> {
     data class Interval<TMessage>(
         val config: Subscription.Interval<TMessage>,
         val lastReadTimeMicroseconds: Double,
-        val nextReadTimeMicroseconds: Double,
     ) : SubscriptionState<TMessage>
 
     data class WebSocket<TMessage>(
@@ -346,8 +345,7 @@ fun <TMessage, TModel> createInterval(
         model,
         SubscriptionState.Interval(
             config = config,
-            nextReadTimeMicroseconds = (config.millisecondsBetweenReads * 1000) + currentTime,
-            lastReadTimeMicroseconds = currentTime - (config.millisecondsBetweenReads * 1000),
+            lastReadTimeMicroseconds = currentTime,
         ),
     )
 }
@@ -814,23 +812,14 @@ fun <TMessage, TModel> runReadInterval(
     state: SubscriptionState.Interval<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
     val currentMicroseconds = HALUtil.getFPGATime().toDouble()
-    return if (currentMicroseconds >= state.nextReadTimeMicroseconds) {
-        val elapsedMicroseconds = currentMicroseconds - state.lastReadTimeMicroseconds
+    val elapsedMicroseconds = currentMicroseconds - state.lastReadTimeMicroseconds
 
-        val intervalMicroseconds = state.config.millisecondsBetweenReads * 1000
-        val intervalsMissed = elapsedMicroseconds / intervalMicroseconds
+    val updatedState =
+        state.copy(
+            lastReadTimeMicroseconds = currentMicroseconds,
+        )
 
-        val newNextReadTime = state.nextReadTimeMicroseconds + (intervalMicroseconds * (intervalsMissed + 1))
-
-        val updatedState =
-            state.copy(
-                nextReadTimeMicroseconds = newNextReadTime,
-                lastReadTimeMicroseconds = currentMicroseconds,
-            )
-        Triple(model, updatedState, Maybe.Some(state.config.message(elapsedMicroseconds / 1000.0)))
-    } else {
-        Triple(model, state, Maybe.None)
-    }
+    return Triple(model, updatedState, Maybe.Some(state.config.message(elapsedMicroseconds / 1000.0)))
 }
 
 fun <TMessage, TModel> runReadWebSocket(

@@ -385,7 +385,6 @@ sealed interface Effect<out TMessage> {
 sealed interface Subscription<out TMessage> {
     data class Interval<TMessage>(
         val id: SubscriptionIdentifier,
-        val millisecondsBetweenReads: Int,
         val message: (Double) -> TMessage,
     ) : Subscription<TMessage>
 
