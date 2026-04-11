@@ -28,7 +28,7 @@ import teaforge.utils.map
 sealed interface SubscriptionState<TMessage> {
     data class Interval<TMessage>(
         val config: Subscription.Interval<TMessage>,
-        val lastReadTimeMicroseconds: Double,
+        val lastReadTimeMicroseconds: Long,
     ) : SubscriptionState<TMessage>
 
     data class WebSocket<TMessage>(
@@ -340,7 +340,7 @@ fun <TMessage, TModel> createInterval(
     model: RoboRioModel<TMessage, TModel>,
     config: Subscription.Interval<TMessage>,
 ): Pair<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>> {
-    val currentTime = HALUtil.getFPGATime().toDouble()
+    val currentTime = HALUtil.getFPGATime()
     return Pair(
         model,
         SubscriptionState.Interval(
@@ -811,7 +811,7 @@ fun <TMessage, TModel> runReadInterval(
     model: RoboRioModel<TMessage, TModel>,
     state: SubscriptionState.Interval<TMessage>,
 ): Triple<RoboRioModel<TMessage, TModel>, SubscriptionState<TMessage>, Maybe<TMessage>> {
-    val currentMicroseconds = HALUtil.getFPGATime().toDouble()
+    val currentMicroseconds = HALUtil.getFPGATime()
     val elapsedMicroseconds = currentMicroseconds - state.lastReadTimeMicroseconds
 
     val updatedState =
