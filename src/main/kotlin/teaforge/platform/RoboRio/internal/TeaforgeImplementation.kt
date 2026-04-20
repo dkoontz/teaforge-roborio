@@ -21,9 +21,19 @@ import edu.wpi.first.wpilibj.DigitalOutput
 import edu.wpi.first.wpilibj.Servo
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.url
+import io.ktor.server.application.install
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
+import io.ktor.server.routing.routing
+import io.ktor.server.websocket.DefaultWebSocketServerSession
+import io.ktor.server.websocket.webSocket
+import io.ktor.websocket.Frame
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.zeromq.SocketType
 import org.zeromq.ZContext
 import teaforge.DebugLoggingConfig
@@ -71,6 +81,9 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.CopyOnWriteArraySet
+import io.ktor.client.plugins.websocket.WebSockets as ClientWebSockets
+import io.ktor.server.websocket.WebSockets as ServerWebSockets
 
 val CANBUS_INIT_TIMEOUT_SECONDS = 1.0
 
@@ -94,13 +107,68 @@ private fun createLoggerStatus(debugLogging: DebugLogging): LoggerStatus =
                 }
             val fileWriter = FileWriter(File(filename), true)
 
+            // List of connected debugger clients
+            val sessions = CopyOnWriteArraySet<DefaultWebSocketServerSession>()
+
+            // Init web socket server
+            embeddedServer(Netty, port = 8080) {
+                install(ServerWebSockets)
+                routing {
+                    webSocket("/") {
+                        // Upon connecting, we will asynchronously send all previously logged json to the client
+                        coroutineScope.launch {
+                            // Read the file 1 line at a time (due to the file being very large) and send
+                            val reader = withContext(Dispatchers.IO) { File(filename).bufferedReader() }
+                            try {
+                                var line = withContext(Dispatchers.IO) { reader.readLine() }
+                                while (line != null) {
+                                    send(Frame.Text(line))
+                                    line = withContext(Dispatchers.IO) { reader.readLine() }
+                                }
+
+                                /*
+                                 * After sending all data from the file, we register the client so we can
+                                 * send new json over websockets when it arrives
+                                 */
+                                sessions.add(this@webSocket)
+                            } finally {
+                                withContext(Dispatchers.IO) { reader.close() }
+                            }
+                        }
+
+                        // Un-register the client when they disconnect
+                        try {
+                            awaitCancellation()
+                        } finally {
+                            sessions.remove(this)
+                        }
+                    }
+                }
+            }.start(wait = false)
+
             LoggerStatus.Enabled(
                 DebugLoggingConfig(
                     getTimestamp = { HALUtil.getFPGATime() },
                     log = { json ->
+
+                        // Write newly arrived json to file
                         fileWriter.write(json)
                         fileWriter.write("\n")
                         fileWriter.flush()
+
+                        /*
+                         * Send newly arrived json to all clients.
+                         * This will not send to clients that haven't finished receiving all data from the file.
+                         */
+                        coroutineScope.launch {
+                            sessions.forEach { session ->
+                                try {
+                                    session.send(Frame.Text(json))
+                                } catch (_: Exception) {
+                                    sessions.remove(session)
+                                }
+                            }
+                        }
                     },
                     compressionEnabled = debugLogging.compression,
                 ),
@@ -369,7 +437,7 @@ fun <TMessage, TModel> processEffect(
                 completion = {
                     val result: Result<WebSocketToken, Error> =
                         try {
-                            val client = HttpClient(CIO) { install(WebSockets) }
+                            val client = HttpClient(CIO) { install(ClientWebSockets) }
                             val session = client.webSocketSession { url(effect.url) }
 
                             Result.Success(WebSocketToken(effect.url, client, session))
